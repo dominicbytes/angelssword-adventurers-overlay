@@ -1,0 +1,26 @@
+{
+  "id": "viseme-lipsync",
+  "name": "Viseme Lip Sync",
+  "version": "1.0.0",
+  "controlScript": "control.js",
+  "overlayScript": "state-resolver.js",
+  "controlStyle": "plugin.css",
+  "assetStates": [
+    "neutral_viseme_closed",
+    "neutral_viseme_open",
+    "neutral_viseme_wide",
+    "neutral_viseme_round",
+    "happy_viseme_closed",
+    "happy_viseme_open",
+    "happy_viseme_wide",
+    "happy_viseme_round",
+    "sad_viseme_closed",
+    "sad_viseme_open",
+    "sad_viseme_wide",
+    "sad_viseme_round",
+    "surprised_viseme_closed",
+    "surprised_viseme_open",
+    "surprised_viseme_wide",
+    "surprised_viseme_round"
+  ]
+}

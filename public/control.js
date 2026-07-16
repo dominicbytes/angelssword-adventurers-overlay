@@ -52,7 +52,6 @@
       return { ok: true };
     }
   });
-
   function connectWS() {
     ws = new WebSocket(wsUrl);
 

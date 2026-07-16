@@ -130,7 +130,6 @@
         return { ok: false, error: 'action_failed', message: error?.message || String(error) };
       }
     },
-
     setPluginSender(sender) {
       pluginSender = typeof sender === 'function' ? sender : null;
     },

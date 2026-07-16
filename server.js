@@ -81,7 +81,7 @@ app.get('/api/plugins', (req, res) => {
 });
 
 // ── Shared: state names and extensions ──────────────
-const STATE_NAMES = [
+const CORE_STATE_NAMES = [
   'neutral_idle', 'neutral_speaking',
   'happy_idle', 'happy_speaking',
   'sad_idle', 'sad_speaking',
@@ -89,7 +89,10 @@ const STATE_NAMES = [
   'typing',
   'eyes_closed'
 ];
-STATE_NAMES.push(...INSTALLED_PLUGINS.flatMap(plugin => plugin.assetStates));
+const STATE_NAMES = [...new Set([
+  ...CORE_STATE_NAMES,
+  ...INSTALLED_PLUGINS.flatMap(plugin => plugin.assetStates)
+])];
 const ASSET_EXTENSIONS = ['.webm', '.webp', '.gif', '.png', '.mp4'];
 const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a'];
 

@@ -759,6 +759,33 @@
   // OBS browser sources can't access getUserMedia.
 
   // ── Display Update ──────────────────────────────
+  function getVisemeGroup(stateKey) {
+    const marker = '_viseme_';
+    const markerIndex = stateKey.indexOf(marker);
+    return markerIndex === -1 ? null : stateKey.slice(0, markerIndex);
+  }
+
+  function startVisemeSiblingsInPhase(targetState, targetVideo) {
+    const targetGroup = getVisemeGroup(targetState);
+    if (!targetGroup) return;
+
+    for (const [key, layer] of Object.entries(layers)) {
+      if (key === targetState || getVisemeGroup(key) !== targetGroup) continue;
+      const siblingVideo = layer.querySelector('video');
+      if (!siblingVideo || !siblingVideo.paused) continue;
+
+      const startSibling = () => {
+        if (Number.isFinite(siblingVideo.duration) && siblingVideo.duration > 0) {
+          siblingVideo.currentTime = targetVideo.currentTime % siblingVideo.duration;
+        }
+        siblingVideo.play().catch(() => {});
+      };
+
+      if (siblingVideo.readyState >= 1) startSibling();
+      else siblingVideo.addEventListener('loadedmetadata', startSibling, { once: true });
+    }
+  }
+
   function updateDisplay() {
     // Emotes have ABSOLUTE priority — override everything
     if (emoteState !== 'inactive') {
@@ -828,11 +855,13 @@
       const video = newLayer.querySelector('video');
       if (video) {
         video.play().catch(() => {});
+        startVisemeSiblingsInPhase(newStateKey, video);
 
         // Wait for the video to actually render a FRESH frame before hiding
         // old layers. readyState alone is NOT enough — a browser-paused video
         // still reports readyState >= 3 while showing a stale freeze frame.
         const targetState = newStateKey; // Capture for closure
+        const targetVisemeGroup = getVisemeGroup(targetState);
         const hideOld = () => {
           // Guard: if state changed since we started, don't touch layers
           if (currentStateKey !== targetState) return;
@@ -840,9 +869,10 @@
             if (key !== targetState) {
               layer.classList.remove('active');
               // Pause hidden videos to free CPU (especially for lower-end PCs).
-              // They'll be play()'d again when their layer becomes active.
+              // Sibling viseme loops stay live so their shared body motion remains in phase.
               const v = layer.querySelector('video');
-              if (v && !v.paused) v.pause();
+              const keepInPhase = targetVisemeGroup && getVisemeGroup(key) === targetVisemeGroup;
+              if (v && !v.paused && !keepInPhase) v.pause();
             }
           }
         };

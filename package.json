@@ -8,7 +8,9 @@
     "start": "node server.js",
     "placeholders": "node generate-placeholders.js",
     "release": "node build-release.js",
-    "test": "node --test tests/*.test.js public/plugins/*/tests/*.test.js"
+    "test": "node --test tests/*.test.js public/plugins/*/tests/*.test.js test/*.test.js",
+    "check": "node --check server.js && node --check lib/plugin-registry.js && node --check lib/plugin-event-state.js && node --check public/plugin-host.js && node --check public/plugin-loader.js && node --check public/control.js && node --check public/overlay.js && node --check addons/viseme-lipsync/plugin/control.js && node --check addons/viseme-lipsync/plugin/state-resolver.js && node --check addons/viseme-lipsync/build-addon.js",
+    "build:addon": "node addons/viseme-lipsync/build-addon.js"
   },
   "dependencies": {
     "express": "^4.21.0",
