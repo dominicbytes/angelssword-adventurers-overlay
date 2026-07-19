@@ -191,7 +191,7 @@ them under `public/plugins/` and restart AS Adventurer. See
 
 ### Viseme Lip Sync Add-on
 
-The optional **Viseme Lip Sync** plugin analyzes the already-selected microphone locally and swaps among four mouth shapes: closed, open, wide, and round. It keeps sibling video loops running in phase so the character's body motion does not restart on every mouth change.
+The optional **Viseme Lip Sync** plugin analyzes the already-selected microphone locally and selects among four mouth shapes: closed, open, wide, and round. It supports phase-aligned full-video swaps plus a v2 sprite mode that keeps one mouth-neutral body loop running and composites only the mouth. The Control Panel includes continuous openness, local voice calibration, and no-microphone test controls.
 
 Build the installable ZIP with `npm run build:addon`, extract it anywhere inside the AS Adventurer folder, and run `Install Viseme Lip Sync.bat`. The plugin is removable without changing the base application. See [`addons/viseme-lipsync/README.md`](addons/viseme-lipsync/README.md) for asset names and installation details.
 

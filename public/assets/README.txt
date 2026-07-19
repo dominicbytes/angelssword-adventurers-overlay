@@ -17,4 +17,8 @@ Optional Viseme Lip Sync plugin files (repeat for happy, sad, and surprised):
   neutral_viseme_wide.<ext>    Wide/teeth shape: I and consonants
   neutral_viseme_round.<ext>   Rounded lips: O, U
 
+Viseme Lip Sync v2 sprite mode:
+  Add viseme/manifest.json plus transparent mouth sprites instead of duplicate
+  videos. See addons/viseme-lipsync/plugin/README.md and the example manifest.
+
 If no assets are found, the app generates colored placeholders automatically.

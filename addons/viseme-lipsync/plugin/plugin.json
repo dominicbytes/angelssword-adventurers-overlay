@@ -1,7 +1,7 @@
 {
   "id": "viseme-lipsync",
   "name": "Viseme Lip Sync",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "controlScript": "control.js",
   "overlayScript": "state-resolver.js",
   "controlStyle": "plugin.css",

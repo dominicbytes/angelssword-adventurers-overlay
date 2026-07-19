@@ -86,9 +86,12 @@ test('the shipped Viseme Lip Sync add-on satisfies the install contract', () => 
 
   const [plugin] = discoverPlugins(publicDir);
   assert.equal(plugin.id, 'viseme-lipsync');
+  assert.equal(plugin.version, '2.0.0');
   assert.equal(plugin.controlScript, '/plugins/viseme-lipsync/control.js');
   assert.equal(plugin.overlayScript, '/plugins/viseme-lipsync/state-resolver.js');
   assert.equal(plugin.assetStates.length, 16);
   assert.ok(plugin.assetStates.includes('neutral_viseme_closed'));
   assert.ok(plugin.assetStates.includes('surprised_viseme_round'));
+  assert.ok(fs.existsSync(path.join(installedDir, 'audio-features.mjs')));
+  assert.ok(fs.existsSync(path.join(installedDir, 'vendor', 'VTUBERAVATARSTUDIO-LICENSE.txt')));
 });

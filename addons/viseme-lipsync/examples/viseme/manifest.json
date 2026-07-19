@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "fps": 24,
+  "mouth": {
+    "size": [160, 100]
+  },
+  "sprites": {
+    "neutral": {
+      "closed": ["sprites/neutral/closed.png"],
+      "open": [
+        "sprites/neutral/open-1.png",
+        "sprites/neutral/open-2.png",
+        "sprites/neutral/open-3.png"
+      ],
+      "wide": [
+        "sprites/neutral/wide-1.png",
+        "sprites/neutral/wide-2.png",
+        "sprites/neutral/wide-3.png"
+      ],
+      "round": [
+        "sprites/neutral/round-1.png",
+        "sprites/neutral/round-2.png",
+        "sprites/neutral/round-3.png"
+      ]
+    }
+  },
+  "anchors": {
+    "default": {
+      "x": 512,
+      "y": 430,
+      "scale": 1,
+      "rotation": 0,
+      "scaleX": 1
+    }
+  }
+}

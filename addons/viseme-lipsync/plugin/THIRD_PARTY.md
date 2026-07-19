@@ -14,3 +14,10 @@ headworklet.min.mjs     37EBEB1D4D7E41FCA7D12BB8FB411F7CE6BB21A2589602DEC18E0A48
 model-en-mixed.bin      0358F68989B5861F9B7D18871B010FA6CBF88A53BDA4954A954D8C548BBCF251
 HEADAUDIO-LICENSE.txt   D45D4192F4E7502846C6B01D743EDDBFF20B3752E4C350A88418F59E4587A60F
 ```
+
+## VTuberAvatarStudio
+
+- Project: https://github.com/JagTheHero/VTuberAvatarStudio
+- Pinned source commit: `834890a9fa99db4c7f99506de6369921612f5da4`
+- License: MIT; preserved in `vendor/VTUBERAVATARSTUDIO-LICENSE.txt`
+- Adapted component: the MFCC filter-bank and normalized cepstral fingerprint approach in `audio-features.mjs`
