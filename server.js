@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const dgram = require('dgram');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 
@@ -49,6 +50,51 @@ const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a'];
 
 let activeModel = 'Default'; // Current model name
 let activeEmote = null;      // Currently active emote
+let playbackState = {
+  phase: 'idle',
+  busy: false,
+  occupied: false,
+  requestId: null,
+  emote: null,
+  emoteType: null
+};
+
+function publishPlaybackState(update) {
+  playbackState = { ...playbackState, ...update };
+  const message = { type: 'animation_state', ...playbackState };
+  broadcast(message, 'plugin');
+  broadcast(message, 'control');
+  return message;
+}
+
+function beginEmote(emote) {
+  const requestId = crypto.randomUUID();
+  const phase = emote.emoteType === 1 ? 'playing' : 'entering';
+
+  activeEmote = emote;
+  publishPlaybackState({
+    phase,
+    busy: phase !== 'held',
+    occupied: true,
+    requestId,
+    emote: emote.name,
+    emoteType: emote.emoteType,
+    reason: null
+  });
+  broadcastAll({ type: 'emote', action: 'trigger', name: emote.name, emote, requestId });
+  return requestId;
+}
+
+function releaseActiveEmote() {
+  if (!activeEmote) return false;
+  publishPlaybackState({ phase: 'exiting', busy: true, occupied: true });
+  broadcastAll({ type: 'emote', action: 'release', requestId: playbackState.requestId });
+  return true;
+}
+
+function busyResponse(res) {
+  return res.status(409).json({ error: 'animation_busy', current: playbackState });
+}
 
 // Resolve model directory path from model name (with path traversal protection)
 function getModelDir(modelName) {
@@ -417,6 +463,10 @@ app.get('/api/emotes', (req, res) => {
   res.json(emotes);
 });
 
+app.get('/api/animation/status', (req, res) => {
+  res.json(playbackState);
+});
+
 app.post('/api/emote/trigger', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'emote name required' });
@@ -426,24 +476,48 @@ app.post('/api/emote/trigger', (req, res) => {
   const emotes = scanEmotes(modelDir);
   const emote = emotes.find(e => e.name === name);
   if (!emote) return res.status(404).json({ error: `emote '${name}' not found` });
+  if (playbackState.occupied) return busyResponse(res);
 
-  activeEmote = emote;
+  const requestId = beginEmote(emote);
   console.log(`[emote] Triggered: ${name} (type ${emote.emoteType})`);
-  broadcastAll({ type: 'emote', action: 'trigger', name, emote });
-  res.json({ success: true, emote });
+  res.status(202).json({ success: true, requestId, state: playbackState, emote });
+});
+
+app.post('/api/emote/toggle', (req, res) => {
+  const { name } = req.body;
+  if (!name) return res.status(400).json({ error: 'emote name required' });
+
+  if (playbackState.occupied) {
+    if (activeEmote?.emoteType === 2 && activeEmote.name === name && playbackState.phase !== 'exiting') {
+      releaseActiveEmote();
+      console.log(`[emote] Toggle release: ${name}`);
+      return res.status(202).json({ success: true, action: 'release', state: playbackState });
+    }
+    return busyResponse(res);
+  }
+
+  const modelDir = getModelDir(activeModel);
+  const emotes = scanEmotes(modelDir);
+  const emote = emotes.find(e => e.name === name);
+  if (!emote) return res.status(404).json({ error: `emote '${name}' not found` });
+
+  const requestId = beginEmote(emote);
+  console.log(`[emote] Toggle trigger: ${name} (type ${emote.emoteType})`);
+  res.status(202).json({ success: true, action: 'trigger', requestId, state: playbackState, emote });
 });
 
 app.post('/api/emote/release', (req, res) => {
+  if (!activeEmote) return res.json({ success: true, state: playbackState });
   console.log(`[emote] Released: ${activeEmote ? activeEmote.name : '(none)'}`);
-  activeEmote = null;
-  broadcastAll({ type: 'emote', action: 'release' });
-  res.json({ success: true });
+  releaseActiveEmote();
+  res.status(202).json({ success: true, state: playbackState });
 });
 
 app.post('/api/emote/sub', (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'sub-animation name required' });
   if (!activeEmote) return res.status(400).json({ error: 'no emote is active' });
+  if (activeEmote.emoteType !== 2 || playbackState.phase !== 'held') return busyResponse(res);
 
   // Support nested paths: "ignition/slash" walks emote → ignition → slash
   const parts = name.split('/');
@@ -459,8 +533,9 @@ app.post('/api/emote/sub', (req, res) => {
   }
 
   console.log(`[emote] Sub-animation: ${activeEmote.name} → ${name}`);
-  broadcastAll({ type: 'emote', action: 'sub', sub, parentEmote: activeEmote.name });
-  res.json({ success: true, sub });
+  publishPlaybackState({ phase: 'sub_playing', busy: true, occupied: true });
+  broadcastAll({ type: 'emote', action: 'sub', sub, parentEmote: activeEmote.name, requestId: playbackState.requestId });
+  res.status(202).json({ success: true, state: playbackState, sub });
 });
 
 // ── WebSocket connections ───────────────────────────
@@ -483,7 +558,7 @@ wss.on('connection', (ws, req) => {
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const rawType = url.searchParams.get('type') || 'overlay';
-  const clientType = ['overlay', 'control'].includes(rawType) ? rawType : 'overlay';
+  const clientType = ['overlay', 'control', 'plugin'].includes(rawType) ? rawType : 'overlay';
 
   ws.clientType = clientType;
   ws.isAlive = true;
@@ -491,6 +566,10 @@ wss.on('connection', (ws, req) => {
   ws._msgResetTime = Date.now();
   clients.add(ws);
   if (DEBUG_WS) console.log(`[ws] ${clientType} connected (${clients.size} total)`);
+
+  if (clientType === 'plugin') {
+    sendToClient(ws, JSON.stringify({ type: 'animation_state', ...playbackState }));
+  }
 
   ws.on('message', (data) => {
     try {
@@ -500,6 +579,23 @@ wss.on('connection', (ws, req) => {
       if (++ws._msgCount > 120) return;
 
       const msg = JSON.parse(data);
+      if (ws.clientType === 'overlay' && msg.type === 'animation_state') {
+        const validPhases = ['playing', 'entering', 'held', 'sub_playing', 'exiting', 'idle'];
+        if (msg.requestId === playbackState.requestId && validPhases.includes(msg.phase)) {
+          const isIdle = msg.phase === 'idle';
+          const isHeld = msg.phase === 'held';
+          publishPlaybackState({
+            phase: msg.phase,
+            busy: !isIdle && !isHeld,
+            occupied: !isIdle,
+            reason: msg.reason || null
+          });
+          if (isIdle) {
+            playbackState = { ...playbackState, requestId: null, emote: null, emoteType: null };
+            activeEmote = null;
+          }
+        }
+      }
       // Control panel sending data → forward to overlays
       if (ws.clientType === 'control') {
         if (msg.type === 'expression' || msg.type === 'speaking' || msg.type === 'config' || msg.type === 'emote' || msg.type === 'state_override') {
@@ -549,7 +645,7 @@ function broadcast(data, targetType) {
 function broadcastAll(data) {
   const msg = JSON.stringify(data);
   for (const client of clients) {
-    sendToClient(client, msg);
+    if (client.clientType !== 'plugin') sendToClient(client, msg);
   }
 }
 
