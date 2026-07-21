@@ -5,6 +5,8 @@ const dgram = require('dgram');
 const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
+const { discoverPlugins } = require('./lib/plugin-registry');
+const { createPluginEventState } = require('./lib/plugin-event-state');
 
 // When compiled with pkg, __dirname points to a virtual snapshot filesystem.
 // Use the exe's real directory for static files (public/, assets/).
@@ -25,7 +27,9 @@ const MAX_WS_BUFFERED_BYTES = 1024 * 1024; // Disconnect clients with more than 
 let DEBUG_UDP = false;         // set true to log raw UDP packets
 const DEBUG_EXPR = false;      // set true to log expression transitions
 const DEBUG_WS = false;        // set true to log websocket connect/disconnect
-const ASSETS_DIR = path.join(APP_DIR, 'public', 'assets');
+const PUBLIC_DIR = path.join(APP_DIR, 'public');
+const ASSETS_DIR = path.join(PUBLIC_DIR, 'assets');
+const INSTALLED_PLUGINS = discoverPlugins(PUBLIC_DIR);
 
 // Ensure assets directory exists
 if (!fs.existsSync(ASSETS_DIR)) {
@@ -33,8 +37,12 @@ if (!fs.existsSync(ASSETS_DIR)) {
 }
 
 // ── Serve static files ──────────────────────────────
-app.use(express.static(path.join(APP_DIR, 'public')));
+app.use(express.static(PUBLIC_DIR));
 app.use(express.json({ limit: '16kb' }));
+
+app.get('/api/plugins', (req, res) => {
+  res.json(INSTALLED_PLUGINS);
+});
 
 // ── Shared: state names and extensions ──────────────
 const STATE_NAMES = [
@@ -45,8 +53,18 @@ const STATE_NAMES = [
   'typing',
   'eyes_closed'
 ];
+STATE_NAMES.push(...INSTALLED_PLUGINS.flatMap(plugin => plugin.assetStates));
 const ASSET_EXTENSIONS = ['.webm', '.webp', '.gif', '.png', '.mp4'];
 const SOUND_EXTENSIONS = ['.mp3', '.wav', '.ogg', '.m4a'];
+
+function isValidPluginEvent(message) {
+  return (
+    message?.type === 'plugin_event' &&
+    typeof message.pluginId === 'string' &&
+    typeof message.event === 'string' &&
+    INSTALLED_PLUGINS.some(plugin => plugin.id === message.pluginId)
+  );
+}
 
 let activeModel = 'Default'; // Current model name
 let activeEmote = null;      // Currently active emote
@@ -540,6 +558,7 @@ app.post('/api/emote/sub', (req, res) => {
 
 // ── WebSocket connections ───────────────────────────
 const clients = new Set();
+const pluginEventState = createPluginEventState();
 
 wss.on('connection', (ws, req) => {
   // Connection limit
@@ -570,6 +589,9 @@ wss.on('connection', (ws, req) => {
   if (clientType === 'plugin') {
     sendToClient(ws, JSON.stringify({ type: 'animation_state', ...playbackState }));
   }
+  if (clientType === 'overlay') {
+    pluginEventState.replay(message => sendToClient(ws, JSON.stringify(message)));
+  }
 
   ws.on('message', (data) => {
     try {
@@ -599,6 +621,10 @@ wss.on('connection', (ws, req) => {
       // Control panel sending data → forward to overlays
       if (ws.clientType === 'control') {
         if (msg.type === 'expression' || msg.type === 'speaking' || msg.type === 'config' || msg.type === 'emote' || msg.type === 'state_override') {
+          broadcast(msg, 'overlay');
+        }
+        if (isValidPluginEvent(msg)) {
+          pluginEventState.remember(msg);
           broadcast(msg, 'overlay');
         }
         // Webcam tracking: process through the same pipeline as VTS/iFacial

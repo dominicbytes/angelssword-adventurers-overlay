@@ -63,7 +63,18 @@
     layers[key] = document.getElementById(`layer-${key}`);
   }
 
+  const overlayContainer = document.getElementById('overlay-container');
   const emoteLayer = document.getElementById('layer-emote');
+
+  function ensureLayer(state) {
+    if (layers[state]) return layers[state];
+    const layer = document.createElement('div');
+    layer.className = 'asset-layer';
+    layer.id = `layer-${state}`;
+    overlayContainer.insertBefore(layer, emoteLayer);
+    layers[state] = layer;
+    return layer;
+  }
 
   const debugPanel = document.getElementById('debug-panel');
   const debugState = document.getElementById('debug-state');
@@ -84,8 +95,7 @@
       console.log(`[overlay] Assets loaded for model "${currentModel}":`, assets);
 
       for (const [state, url] of Object.entries(assets)) {
-        const layer = layers[state];
-        if (!layer) continue;
+        const layer = ensureLayer(state);
 
         const isVideo = url.endsWith('.webm') || url.endsWith('.mp4');
         if (isVideo) {
@@ -787,6 +797,14 @@
       newStateKey = `${effectiveExpression}_${isSpeaking ? 'speaking' : 'idle'}`;
     }
 
+    newStateKey = window.ASAPluginHost?.resolveDisplayState({
+      baseStateKey: newStateKey,
+      expression: effectiveExpression,
+      speaking: isSpeaking,
+      typing: effectiveTyping,
+      assets
+    }) || newStateKey;
+
     if (newStateKey === currentStateKey) return;
 
     const prevKey = currentStateKey;
@@ -954,6 +972,8 @@
           }
           currentStateKey = null; // Force re-evaluation
           updateDisplay();
+        } else if (data.type === 'plugin_event') {
+          window.ASAPluginHost?.emitPluginEvent(data);
         } else if (data.type === 'emote') {
           if (data.action === 'trigger' && data.emote) {
             handleEmoteTrigger(data.emote, data.requestId);
@@ -983,6 +1003,7 @@
   async function init() {
     console.log('[overlay] Initializing...');
     console.log('[overlay] Debug mode:', debug);
+    window.ASAPluginHost?.setDisplayUpdater(updateDisplay);
     await loadAssets();
     connectWS();
     console.log('[overlay] Ready');
