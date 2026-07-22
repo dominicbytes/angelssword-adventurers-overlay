@@ -251,7 +251,8 @@
       processWebcamFrame();
     } catch (e) {
       console.error('Webcam error:', e);
-      btn.textContent = 'Start Webcam';
+      stopWebcam();
+      btn.textContent = `Error: ${e.message}`;
       btn.disabled = false;
       if (statusEl) {
         statusEl.textContent = `Status: Error — ${e.message}`;
@@ -266,6 +267,7 @@
       webcamStream.getTracks().forEach(t => t.stop());
       webcamStream = null;
     }
+    document.getElementById('webcam-video').srcObject = null;
     document.getElementById('webcam-container').style.display = 'none';
     document.getElementById('btn-start-webcam').style.display = '';
     document.getElementById('btn-start-webcam').textContent = 'Start Webcam';
@@ -1019,6 +1021,7 @@
       console.log(`[mic] Started: ${activeLabel} (Web Worker timer @ 33ms)`);
     } catch (e) {
       console.error('[mic] Error:', e);
+      stopMic();
       const btn = document.getElementById('btn-start-mic');
       btn.textContent = 'Error: ' + e.message;
       btn.disabled = false;
