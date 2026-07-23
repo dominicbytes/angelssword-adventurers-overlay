@@ -34,17 +34,15 @@
 
   async function loadMP() {
     if (faceLandmarker) return faceLandmarker;
-    var VER = '0.10.14';
-    var vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + VER + '/vision_bundle.mjs');
+    var vision = await import('/vendor/mediapipe/vision_bundle.mjs');
     var FaceLandmarker = vision.FaceLandmarker;
     var FilesetResolver = vision.FilesetResolver;
     var resolver = await FilesetResolver.forVisionTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@' + VER + '/wasm'
+      '/vendor/mediapipe/wasm'
     );
     faceLandmarker = await FaceLandmarker.createFromOptions(resolver, {
       baseOptions: {
-        modelAssetPath:
-          'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        modelAssetPath: '/vendor/mediapipe/models/face_landmarker.task',
         delegate: 'GPU',
       },
       runningMode: 'VIDEO',
