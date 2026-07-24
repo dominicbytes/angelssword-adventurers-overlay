@@ -63,3 +63,35 @@ repository without rewriting its source.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
 - Rule Graph and Sequencer: action-registry seam ready; implementation pending.
 - VeadoTube Mini Importer: independently implementable; fixture-driven work pending.
+
+## Next implementation pass
+
+The next pass targets Windows only. Placeholder artwork is approved for props,
+tossables, and particles. Plugins remain bundled as standalone repository
+candidates until their first stable integration slices are complete; separate
+GitHub repositories will be created later.
+
+Implementation order:
+
+1. Finish the Universal Input Mapper foundation. Verify with persistence,
+   conflict, held/toggle, and standalone-package tests.
+2. Build Rule Graph and Sequencer on the shared action registry. Verify that
+   invalid cycles are rejected and valid action chains execute deterministically.
+3. Add OBS Scene-Aware Profiles through OBS WebSocket 5.x. Verify reconnect,
+   authentication, lifecycle, and backpressure behavior against mocks and local OBS.
+4. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
+   composes bounded motion without opening another camera stream.
+5. Add Hand Gesture Triggers without opening a second webcam stream. Verify
+   scheduler backpressure, gesture edges, cooldowns, and action invocation.
+6. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
+   motion, cleanup, transparency, and overlay reconnect behavior.
+7. Finish Reactive Motion Effects polish and presets. Verify configuration
+   migration, preview, reduced motion, reconnect, and performance behavior.
+8. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
+   inspect-only output before extraction and confirm the source remains unchanged.
+
+Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored
+`.private-fixtures/` directory inside the Byte Edition repository unless their
+owner explicitly authorizes redistribution. Public synthetic fixtures may remain
+tracked elsewhere. VaedoTube Mini, OBS, development servers, and plugin runtimes
+are started manually during the next work session; this setup does not launch them.

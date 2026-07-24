@@ -18,5 +18,8 @@ public/assets/*/
 *.zip
 *.7z
 
+# Private avatar importer fixtures
+/.private-fixtures/
+
 # Windows shortcuts (contain absolute paths)
 *.lnk
