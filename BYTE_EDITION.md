@@ -56,7 +56,8 @@ repository without rewriting its source.
 ## Plugin status
 
 - Reactive Motion Effects: first working slice included at version `0.1.0`.
-- Universal Input Mapper: first keyboard-to-action slice included at version `0.1.0`.
+- Universal Input Mapper: keyboard foundation complete at version `0.2.0` with
+  multiple mappings, contexts, press/hold/toggle modes, conflicts, and import/export.
 - OBS Scene-Aware Profiles: planned against lifecycle PR 3 and backpressure PR 5.
 - Gaze and Head Parallax: tracking seam ready; plugin implementation pending.
 - Hand Gesture Triggers: tracking processor seam ready; implementation pending.
@@ -73,21 +74,19 @@ GitHub repositories will be created later.
 
 Implementation order:
 
-1. Finish the Universal Input Mapper foundation. Verify with persistence,
-   conflict, held/toggle, and standalone-package tests.
-2. Build Rule Graph and Sequencer on the shared action registry. Verify that
+1. Build Rule Graph and Sequencer on the shared action registry. Verify that
    invalid cycles are rejected and valid action chains execute deterministically.
-3. Add OBS Scene-Aware Profiles through OBS WebSocket 5.x. Verify reconnect,
+2. Add OBS Scene-Aware Profiles through OBS WebSocket 5.x. Verify reconnect,
    authentication, lifecycle, and backpressure behavior against mocks and local OBS.
-4. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
+3. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
    composes bounded motion without opening another camera stream.
-5. Add Hand Gesture Triggers without opening a second webcam stream. Verify
+4. Add Hand Gesture Triggers without opening a second webcam stream. Verify
    scheduler backpressure, gesture edges, cooldowns, and action invocation.
-6. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
+5. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
    motion, cleanup, transparency, and overlay reconnect behavior.
-7. Finish Reactive Motion Effects polish and presets. Verify configuration
+6. Finish Reactive Motion Effects polish and presets. Verify configuration
    migration, preview, reduced motion, reconnect, and performance behavior.
-8. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
+7. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
    inspect-only output before extraction and confirm the source remains unchanged.
 
 Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored

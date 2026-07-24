@@ -1,7 +1,7 @@
 {
   "id": "universal-input-mapper",
   "name": "Universal Input Mapper",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "controlScript": "control.js",
   "controlStyle": "plugin.css",
   "assetStates": []

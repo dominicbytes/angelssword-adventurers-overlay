@@ -4,9 +4,16 @@
 }
 
 .universal-input-mapper-panel select,
+.universal-input-mapper-panel input[type="text"],
+.universal-input-mapper-panel textarea,
 .universal-input-mapper-panel [data-field="key"] {
   width: 100%;
   margin-top: 6px;
+}
+
+.universal-input-mapper-panel textarea {
+  box-sizing: border-box;
+  resize: vertical;
 }
 
 .universal-input-mapper-panel .input-mapper-toggle {
@@ -18,4 +25,22 @@
 .universal-input-mapper-panel .input-mapper-toggle input {
   width: auto;
   margin: 0;
+}
+
+.universal-input-mapper-panel .input-mapper-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.universal-input-mapper-panel .input-mapper-row,
+.universal-input-mapper-panel .input-mapper-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.universal-input-mapper-panel .input-mapper-status {
+  min-height: 1.2em;
 }

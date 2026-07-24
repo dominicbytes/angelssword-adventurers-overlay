@@ -1,6 +1,6 @@
 {
   "name": "@as-adventurer/universal-input-mapper-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Declarative input-to-action mappings for AS Adventurer Byte Edition",
   "license": "MIT",
   "scripts": {
