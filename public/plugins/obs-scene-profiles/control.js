@@ -18,6 +18,16 @@
   const createSocket = options.createSocket || ((url, protocol) => new options.WebSocket(url, protocol));
   const createRequestId = options.createRequestId || (() => globalThis.crypto.randomUUID());
   const schedule = options.schedule || ((callback, delay) => setTimeout(callback, delay));
+  const setRequestTimer = options.setRequestTimer || ((callback, delay) => {
+    const timer = setTimeout(callback, delay);
+    timer.unref?.();
+    return timer;
+  });
+  const clearRequestTimer = options.clearRequestTimer || (timer => clearTimeout(timer));
+  const requestTimeoutMs = options.requestTimeoutMs || 5000;
+  const maxPendingRequests = 64;
+  const op = Object.freeze({ hello: 0, identify: 1, identified: 2, event: 5, request: 6, response: 7 });
+  const eventSubscriptions = (1 << 1) | (1 << 2);
   const storageKey = 'as-plugin-obs-scene-profiles';
   const defaultUrl = options.defaultUrl || 'ws://localhost:4455';
   let socket = null;
@@ -28,6 +38,7 @@
   let reconnectAttempt = 0;
   let manualDisconnect = false;
   let stateListener = null;
+  let profileQueue = Promise.resolve();
   const pendingRequests = new Map();
 
   function copy(value) {
@@ -120,7 +131,6 @@
     if (!socket) return false;
     if (socket.bufferedAmount > 1024 * 1024) {
       const congestedSocket = socket;
-      socket = null;
       connectionState = 'backpressure';
       notifyState();
       congestedSocket.close(1008, 'OBS client backpressure');
@@ -131,20 +141,29 @@
   }
 
   function request(requestType, requestData) {
+    if (pendingRequests.size >= maxPendingRequests) {
+      return { ok: false, error: 'obs_request_limit' };
+    }
     const requestId = createRequestId();
-    pendingRequests.set(requestId, requestType);
+    let resolveCompletion;
+    const completion = new Promise(resolve => { resolveCompletion = resolve; });
+    const timer = setRequestTimer(() => {
+      if (!pendingRequests.delete(requestId)) return;
+      resolveCompletion({ ok: false, error: 'obs_timeout' });
+    }, requestTimeoutMs);
+    pendingRequests.set(requestId, { requestType, resolveCompletion, timer });
     const data = { requestType, requestId };
     if (requestData) data.requestData = requestData;
-    if (!send({ op: 6, d: data })) {
+    if (!send({ op: op.request, d: data })) {
       pendingRequests.delete(requestId);
-      return null;
+      clearRequestTimer(timer);
+      resolveCompletion({ ok: false, error: 'obs_backpressure' });
+      return { ok: false, error: 'obs_backpressure' };
     }
-    return requestId;
+    return { ok: true, requestId, completion };
   }
 
-  async function applyScene(sceneName) {
-    currentScene = sceneName;
-    notifyState();
+  async function applyProfile(sceneName) {
     const profile = config.profiles.find(candidate => candidate.sceneName === sceneName);
     if (!profile) return { ok: true, matched: false };
     for (const action of profile.actions) {
@@ -154,6 +173,22 @@
     return { ok: true, matched: true };
   }
 
+  function queueScene(sceneName) {
+    currentScene = sceneName;
+    notifyState();
+    const application = profileQueue.then(() => applyProfile(sceneName));
+    profileQueue = application.catch(() => {});
+    return application;
+  }
+
+  function clearPending(error) {
+    for (const pending of pendingRequests.values()) {
+      clearRequestTimer(pending.timer);
+      pending.resolveCompletion({ ok: false, error });
+    }
+    pendingRequests.clear();
+  }
+
   async function handleMessage(event, password) {
     let message;
     try {
@@ -161,30 +196,41 @@
     } catch {
       return;
     }
-    if (message.op === 0) {
+    if (message.op === op.hello) {
       const identify = {
         rpcVersion: 1,
-        eventSubscriptions: (1 << 1) | (1 << 2)
+        eventSubscriptions
       };
       if (message.d?.authentication) {
         identify.authentication = await createAuthentication(password || '', message.d.authentication);
       }
-      send({ op: 1, d: identify });
-    } else if (message.op === 2) {
+      send({ op: op.identify, d: identify });
+    } else if (message.op === op.identified) {
       connectionState = 'connected';
       reconnectAttempt = 0;
       notifyState();
       request('GetCurrentProgramScene');
-    } else if (message.op === 7) {
-      const requestType = pendingRequests.get(message.d?.requestId);
-      if (!requestType) return;
+    } else if (message.op === op.response) {
+      const pending = pendingRequests.get(message.d?.requestId);
+      if (!pending) return;
       pendingRequests.delete(message.d.requestId);
-      if (message.d.requestStatus?.result && requestType === 'GetCurrentProgramScene') {
-        await applyScene(message.d.responseData?.sceneName || message.d.responseData?.currentProgramSceneName);
+      clearRequestTimer(pending.timer);
+      if (!message.d.requestStatus?.result) {
+        pending.resolveCompletion({
+          ok: false,
+          error: 'obs_request_failed',
+          code: message.d.requestStatus?.code,
+          comment: message.d.requestStatus?.comment
+        });
+        return;
       }
-    } else if (message.op === 5) {
+      pending.resolveCompletion({ ok: true, responseData: message.d.responseData || {} });
+      if (pending.requestType === 'GetCurrentProgramScene') {
+        await queueScene(message.d.responseData?.sceneName || message.d.responseData?.currentProgramSceneName);
+      }
+    } else if (message.op === op.event) {
       if (message.d?.eventType === 'CurrentProgramSceneChanged') {
-        await applyScene(message.d.eventData?.sceneName);
+        await queueScene(message.d.eventData?.sceneName);
       } else if (message.d?.eventType === 'CurrentSceneCollectionChanging') {
         obsBusy = true;
         notifyState();
@@ -221,17 +267,18 @@
       socket = null;
       if (previous) previous.close();
       connection = null;
-      pendingRequests.clear();
+      clearPending('obs_disconnected');
       connectionState = 'disconnected';
       notifyState();
     },
-    setScene(sceneName) {
+    async setScene(sceneName) {
       if (connectionState !== 'connected') return { ok: false, error: 'obs_disconnected' };
       if (obsBusy) return { ok: false, error: 'obs_busy' };
       if (typeof sceneName !== 'string' || !sceneName) return { ok: false, error: 'invalid_scene' };
-      const requestId = request('SetCurrentProgramScene', { sceneName });
-      if (!requestId) return { ok: false, error: 'obs_backpressure' };
-      return { ok: true, requestId };
+      const pending = request('SetCurrentProgramScene', { sceneName });
+      if (!pending.ok) return pending;
+      const result = await pending.completion;
+      return result.ok ? { ok: true, requestId: pending.requestId } : result;
     },
     update(nextConfig) {
       const candidate = normalize(nextConfig);
@@ -253,7 +300,7 @@
     },
     async reapplyProfile() {
       if (!currentScene) return { ok: false, error: 'scene_unavailable' };
-      return applyScene(currentScene);
+      return queueScene(currentScene);
     },
     destroy() {
       unregisterSetScene?.();
@@ -271,16 +318,17 @@
       notifyState();
       const connectedSocket = createSocket(connection.url, 'obswebsocket.json');
       socket = connectedSocket;
-      connectedSocket.addEventListener('message', event => (
-        handleMessage(event, connection.password).catch(() => {
+      connectedSocket.addEventListener('message', event => {
+        if (socket !== connectedSocket) return;
+        return handleMessage(event, nextConnection.password || '').catch(() => {
           connectionState = 'error';
           notifyState();
-        })
-      ));
+        });
+      });
       connectedSocket.addEventListener('close', event => {
         if (socket !== connectedSocket || manualDisconnect) return;
         socket = null;
-        pendingRequests.clear();
+        clearPending('obs_disconnected');
         if (event.code === 4011 || event.code === 4009) {
           connectionState = event.code === 4011 ? 'invalidated' : 'authentication_failed';
           notifyState();

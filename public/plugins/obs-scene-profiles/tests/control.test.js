@@ -134,7 +134,7 @@ test('pauses requests during a scene collection change and refreshes afterward',
     d: { eventType: 'CurrentSceneCollectionChanging', eventData: { sceneCollectionName: 'Shows' } }
   }) });
 
-  assert.deepEqual(controller.setScene('Gameplay'), { ok: false, error: 'obs_busy' });
+  assert.deepEqual(await controller.setScene('Gameplay'), { ok: false, error: 'obs_busy' });
   await socket.emit('message', { data: JSON.stringify({
     op: 5,
     d: { eventType: 'CurrentSceneCollectionChanged', eventData: { sceneCollectionName: 'Shows' } }
@@ -143,7 +143,7 @@ test('pauses requests during a scene collection change and refreshes afterward',
     op: 6,
     d: { requestType: 'GetCurrentProgramScene', requestId: 'refresh' }
   });
-  assert.deepEqual(controller.setScene('Gameplay'), { ok: true, requestId: 'switch' });
+  const switchResult = controller.setScene('Gameplay');
   assert.deepEqual(socket.sent.at(-1), {
     op: 6,
     d: {
@@ -152,6 +152,16 @@ test('pauses requests during a scene collection change and refreshes afterward',
       requestData: { sceneName: 'Gameplay' }
     }
   });
+  await socket.emit('message', { data: JSON.stringify({
+    op: 7,
+    d: {
+      requestType: 'SetCurrentProgramScene',
+      requestId: 'switch',
+      requestStatus: { result: true, code: 100 },
+      responseData: {}
+    }
+  }) });
+  assert.deepEqual(await switchResult, { ok: true, requestId: 'switch' });
 });
 
 test('reconnects ordinary closures but not invalidated sessions or manual disconnects', async () => {
@@ -182,9 +192,11 @@ test('reconnects ordinary closures but not invalidated sessions or manual discon
 
 test('disconnects instead of adding OBS WebSocket backpressure', async () => {
   const harness = createSocketHarness();
+  const scheduled = [];
   const controller = createObsSceneProfiles({ invokeAction() {} }, {
     createSocket: harness.createSocket,
-    createRequestId: () => 'switch'
+    createRequestId: () => 'switch',
+    schedule: (callback, delay) => scheduled.push({ callback, delay })
   });
   controller.connect({ url: 'ws://localhost:4455', password: '' });
   const socket = harness.sockets[0];
@@ -192,9 +204,118 @@ test('disconnects instead of adding OBS WebSocket backpressure', async () => {
   await socket.emit('message', { data: JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } }) });
   socket.bufferedAmount = (1024 * 1024) + 1;
 
-  assert.deepEqual(controller.setScene('Gameplay'), { ok: false, error: 'obs_backpressure' });
+  assert.deepEqual(await controller.setScene('Gameplay'), { ok: false, error: 'obs_backpressure' });
   assert.deepEqual(socket.closeCalls.at(-1), [1008, 'OBS client backpressure']);
   assert.equal(controller.getState().connectionState, 'backpressure');
+  await socket.emit('close', { code: 1008 });
+  assert.equal(controller.getState().connectionState, 'reconnecting');
+  assert.equal(scheduled[0].delay, 1000);
+});
+
+test('reports rejected OBS requests and ignores messages from replaced sockets', async () => {
+  const harness = createSocketHarness();
+  const requestIds = ['initial', 'switch'];
+  const controller = createObsSceneProfiles({ invokeAction() {} }, {
+    createSocket: harness.createSocket,
+    createRequestId: () => requestIds.shift()
+  });
+
+  controller.connect({ url: 'ws://localhost:4455', password: 'old' });
+  const oldSocket = harness.sockets[0];
+  controller.connect({ url: 'ws://localhost:4455', password: 'new' });
+  const socket = harness.sockets[1];
+  await oldSocket.emit('message', { data: JSON.stringify({ op: 0, d: { rpcVersion: 1 } }) });
+  assert.deepEqual(oldSocket.sent, []);
+  assert.deepEqual(socket.sent, []);
+
+  await socket.emit('message', { data: JSON.stringify({ op: 0, d: { rpcVersion: 1 } }) });
+  await socket.emit('message', { data: JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } }) });
+  const result = controller.setScene('Missing Scene');
+  await socket.emit('message', { data: JSON.stringify({
+    op: 7,
+    d: {
+      requestType: 'SetCurrentProgramScene',
+      requestId: 'switch',
+      requestStatus: { result: false, code: 600, comment: 'No scene was found' }
+    }
+  }) });
+  assert.deepEqual(await result, {
+    ok: false,
+    error: 'obs_request_failed',
+    code: 600,
+    comment: 'No scene was found'
+  });
+});
+
+test('times out unanswered requests and caps pending OBS work', async () => {
+  const harness = createSocketHarness();
+  const timers = [];
+  let requestNumber = 0;
+  const controller = createObsSceneProfiles({ invokeAction() {} }, {
+    createSocket: harness.createSocket,
+    createRequestId: () => `request-${++requestNumber}`,
+    setRequestTimer: callback => {
+      const timer = { callback };
+      timers.push(timer);
+      return timer;
+    },
+    clearRequestTimer() {}
+  });
+
+  controller.connect({ url: 'ws://localhost:4455', password: '' });
+  const socket = harness.sockets[0];
+  await socket.emit('message', { data: JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } }) });
+
+  const pending = controller.setScene('Gameplay');
+  timers[1].callback();
+  assert.deepEqual(await pending, { ok: false, error: 'obs_timeout' });
+
+  const queued = Array.from({ length: 63 }, () => controller.setScene('Gameplay'));
+  assert.deepEqual(await controller.setScene('Overflow'), { ok: false, error: 'obs_request_limit' });
+  controller.disconnect();
+  await Promise.all(queued);
+});
+
+test('serializes profiles so the latest scene finishes last', async () => {
+  const harness = createSocketHarness();
+  const order = [];
+  let releaseGameplay;
+  const controller = createObsSceneProfiles({
+    invokeAction: async (_actionId, parameters) => {
+      order.push(`${parameters.scene}-start`);
+      if (parameters.scene === 'Gameplay') {
+        await new Promise(resolve => { releaseGameplay = resolve; });
+      }
+      order.push(`${parameters.scene}-end`);
+      return { ok: true };
+    }
+  }, {
+    createSocket: harness.createSocket,
+    initialConfig: {
+      schemaVersion: 1,
+      profiles: [
+        { sceneName: 'Gameplay', actions: [{ actionId: 'state.set', parameters: { scene: 'Gameplay' } }] },
+        { sceneName: 'BRB', actions: [{ actionId: 'state.set', parameters: { scene: 'BRB' } }] }
+      ]
+    }
+  });
+
+  controller.connect({ url: 'ws://localhost:4455', password: '' });
+  const socket = harness.sockets[0];
+  const gameplay = socket.emit('message', { data: JSON.stringify({
+    op: 5,
+    d: { eventType: 'CurrentProgramSceneChanged', eventData: { sceneName: 'Gameplay' } }
+  }) });
+  await Promise.resolve();
+  const brb = socket.emit('message', { data: JSON.stringify({
+    op: 5,
+    d: { eventType: 'CurrentProgramSceneChanged', eventData: { sceneName: 'BRB' } }
+  }) });
+  await Promise.resolve();
+  assert.deepEqual(order, ['Gameplay-start']);
+  releaseGameplay();
+  await Promise.all([gameplay, brb]);
+  assert.deepEqual(order, ['Gameplay-start', 'Gameplay-end', 'BRB-start', 'BRB-end']);
 });
 
 test('persists only validated loopback profiles and never stores the OBS password', () => {
