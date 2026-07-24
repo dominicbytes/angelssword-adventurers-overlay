@@ -1,0 +1,19 @@
+.rule-graph-panel textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 10px 0;
+  resize: vertical;
+}
+
+.rule-graph-panel [data-field="graphs"] {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.rule-graph-panel .rule-graph-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

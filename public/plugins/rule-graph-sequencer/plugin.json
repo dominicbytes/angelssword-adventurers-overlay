@@ -1,0 +1,8 @@
+{
+  "id": "rule-graph-sequencer",
+  "name": "Rule Graph and Sequencer",
+  "version": "0.1.0",
+  "controlScript": "control.js",
+  "controlStyle": "plugin.css",
+  "assetStates": []
+}

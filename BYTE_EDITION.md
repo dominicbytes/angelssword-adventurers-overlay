@@ -62,7 +62,8 @@ repository without rewriting its source.
 - Gaze and Head Parallax: tracking seam ready; plugin implementation pending.
 - Hand Gesture Triggers: tracking processor seam ready; implementation pending.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
-- Rule Graph and Sequencer: action-registry seam ready; implementation pending.
+- Rule Graph and Sequencer: validated manual action-graph slice included at
+  version `0.1.0`; triggers and visual editing remain pending.
 - VeadoTube Mini Importer: independently implementable; fixture-driven work pending.
 
 ## Next implementation pass
@@ -74,19 +75,17 @@ GitHub repositories will be created later.
 
 Implementation order:
 
-1. Build Rule Graph and Sequencer on the shared action registry. Verify that
-   invalid cycles are rejected and valid action chains execute deterministically.
-2. Add OBS Scene-Aware Profiles through OBS WebSocket 5.x. Verify reconnect,
+1. Add OBS Scene-Aware Profiles through OBS WebSocket 5.x. Verify reconnect,
    authentication, lifecycle, and backpressure behavior against mocks and local OBS.
-3. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
+2. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
    composes bounded motion without opening another camera stream.
-4. Add Hand Gesture Triggers without opening a second webcam stream. Verify
+3. Add Hand Gesture Triggers without opening a second webcam stream. Verify
    scheduler backpressure, gesture edges, cooldowns, and action invocation.
-5. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
+4. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
    motion, cleanup, transparency, and overlay reconnect behavior.
-6. Finish Reactive Motion Effects polish and presets. Verify configuration
+5. Finish Reactive Motion Effects polish and presets. Verify configuration
    migration, preview, reduced motion, reconnect, and performance behavior.
-7. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
+6. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
    inspect-only output before extraction and confirm the source remains unchanged.
 
 Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored
