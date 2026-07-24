@@ -10,6 +10,7 @@
   let samples = null;
   let frameHandle = null;
   let lastLevelSentAt = 0;
+  let currentLevel = 0;
 
   function loadConfig() {
     try {
@@ -26,9 +27,13 @@
 
   let config = loadConfig();
 
+  function sendState() {
+    host.sendPluginEvent(pluginId, 'state', { ...config, level: currentLevel });
+  }
+
   function saveAndSendConfig() {
     localStorage.setItem(storageKey, JSON.stringify(config));
-    host.sendPluginEvent(pluginId, 'config', config);
+    sendState();
   }
 
   function stopMeter() {
@@ -37,7 +42,8 @@
     try { analyser?.disconnect(); } catch {}
     analyser = null;
     samples = null;
-    host.sendPluginEvent(pluginId, 'level', { value: 0 });
+    currentLevel = 0;
+    sendState();
   }
 
   function readLevel(timestamp) {
@@ -51,7 +57,8 @@
     }
     const rms = Math.sqrt(energy / samples.length);
     if (timestamp - lastLevelSentAt >= 50) {
-      host.sendPluginEvent(pluginId, 'level', { value: Math.min(1, rms * 8) });
+      currentLevel = Math.min(1, rms * 8);
+      sendState();
       lastLevelSentAt = timestamp;
     }
     frameHandle = requestAnimationFrame(readLevel);
@@ -126,4 +133,3 @@
   if (host.isTransportOpen()) saveAndSendConfig();
   if (config.enabled) startMeter(host.getAudioInput());
 })();
-

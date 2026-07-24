@@ -34,13 +34,8 @@ test('turns replayed configuration and audio level into bounded motion', () => {
 
   host.emit('plugin-event', {
     pluginId: 'reactive-motion',
-    event: 'config',
-    data: { enabled: true, preset: 'bouncy', intensity: 0.5 }
-  });
-  host.emit('plugin-event', {
-    pluginId: 'reactive-motion',
-    event: 'level',
-    data: { value: 1 }
+    event: 'state',
+    data: { enabled: true, preset: 'bouncy', intensity: 0.5, level: 1 }
   });
   frame(250);
 
@@ -63,10 +58,9 @@ test('disabling the plugin clears its motion contribution', () => {
 
   host.emit('plugin-event', {
     pluginId: 'reactive-motion',
-    event: 'config',
+    event: 'state',
     data: { enabled: false }
   });
 
   assert.deepEqual(host.calls.at(-1), ['clear', 'reactive-motion']);
 });
-

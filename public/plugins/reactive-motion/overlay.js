@@ -59,17 +59,16 @@
 
   const unsubscribe = host.on('plugin-event', message => {
     if (message?.pluginId !== pluginId) return;
-    if (message.event === 'config') {
+    if (message.event === 'state') {
       const next = message.data || {};
       config = {
         enabled: next.enabled === true,
         preset: ['calm', 'bouncy', 'elastic'].includes(next.preset) ? next.preset : 'calm',
         intensity: clamp(next.intensity, 0, 1, 0.5)
       };
+      level = clamp(next.level, 0, 1, 0);
       if (config.enabled) schedule();
       else stop();
-    } else if (message.event === 'level') {
-      level = clamp(message.data?.value, 0, 1, 0);
     }
   });
 
@@ -80,4 +79,3 @@
     }
   });
 });
-
