@@ -1,5 +1,9 @@
 # ⚔️ AS Adventurer (MediaPipe Edition)
 
+> The `byte-edition` branch is Dominic Bytes' integration distribution. It
+> combines the current upstream patch set with a standalone plugin platform.
+> See [BYTE_EDITION.md](BYTE_EDITION.md) for compatibility and provenance.
+
 **A free, open-source reactive overlay for streamers.**  
 This is a **MediaPipe-first** fork of [AS Adventurer](https://github.com/AngelsSwordStudios/angelssword-adventurers-overlay) by Angel's Sword Studios.
 

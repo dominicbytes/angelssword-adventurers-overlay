@@ -1,6 +1,6 @@
 {
   "name": "as-adventurer",
-  "version": "0.1.0",
+  "version": "0.2.0-byte.1",
   "description": "AS Adventurer — streaming overlay with face tracking and voice detection",
   "main": "server.js",
   "license": "MIT",
