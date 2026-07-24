@@ -62,4 +62,3 @@ repository without rewriting its source.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
 - Rule Graph and Sequencer: pending action registry.
 - VeadoTube Mini Importer: independently implementable; fixture-driven work pending.
-

@@ -2,7 +2,6 @@
   display: block;
   margin-bottom: 12px;
 }
-
 .reactive-motion-panel select,
 .reactive-motion-panel input[type="range"] {
   width: 100%;
@@ -19,4 +18,3 @@
   width: auto;
   margin: 0;
 }
-

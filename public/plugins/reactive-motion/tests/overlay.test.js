@@ -48,7 +48,6 @@ test('turns replayed configuration and audio level into bounded motion', () => {
   controller.destroy();
   assert.deepEqual(host.calls.at(-1), ['clear', 'reactive-motion']);
 });
-
 test('disabling the plugin clears its motion contribution', () => {
   const host = createHost();
   createReactiveMotionOverlay(host, {

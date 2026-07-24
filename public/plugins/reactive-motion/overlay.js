@@ -70,8 +70,7 @@
       if (config.enabled) schedule();
       else stop();
     }
-  });
-
+});
   return Object.freeze({
     destroy() {
       unsubscribe();

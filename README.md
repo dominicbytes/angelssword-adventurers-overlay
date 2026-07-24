@@ -4,10 +4,10 @@
 > combines the current upstream patch set with a standalone plugin platform.
 > See [BYTE_EDITION.md](BYTE_EDITION.md) for compatibility and provenance.
 
-**A free, open-source reactive overlay for streamers.**  
+**A free, open-source reactive overlay for streamers.**
 This is a **MediaPipe-first** fork of [AS Adventurer](https://github.com/AngelsSwordStudios/angelssword-adventurers-overlay) by Angel's Sword Studios.
 
-**No VTube Studio, no iPhone, no paid apps required.**  
+**No VTube Studio, no iPhone, no paid apps required.**
 Just open the control panel, click **Start Webcam**, and your face drives the character in real time using Google MediaPipe Face Landmarker (runs entirely in the browser).
 
 It still supports the original VTube Studio / iFacialMocap pipelines as optional advanced options.
@@ -154,7 +154,7 @@ Emotes support **variants** — `intro.webm`, `intro2.webm`, `intro3.webm` play 
 3. Allow camera access when the browser asks
 4. Face tracking starts instantly — no phone, no apps, no IP addresses
 
-MediaPipe runs completely in your browser using WebAssembly + GPU (when available).  
+MediaPipe runs completely in your browser using WebAssembly + GPU (when available).
 Your face never leaves the machine.
 
 **Tips for best results:**

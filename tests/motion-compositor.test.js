@@ -15,7 +15,6 @@ test('composes independent plugin motion without replacing the base transform', 
     'translateX(-50%) translate3d(6px, -2px, 0) rotate(3deg) scale(1.03)'
   );
 });
-
 test('clamps contributions and restores the base transform after cleanup', () => {
   const target = { style: { transform: '' } };
   const motion = createMotionCompositor(target);
@@ -29,4 +28,3 @@ test('clamps contributions and restores the base transform after cleanup', () =>
   motion.clear('unsafe');
   assert.equal(target.style.transform, '');
 });
-
