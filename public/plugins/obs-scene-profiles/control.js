@@ -189,7 +189,7 @@
     pendingRequests.clear();
   }
 
-  async function handleMessage(event, password) {
+  async function handleMessage(event, password, isCurrent) {
     let message;
     try {
       message = JSON.parse(event.data);
@@ -204,6 +204,7 @@
       if (message.d?.authentication) {
         identify.authentication = await createAuthentication(password || '', message.d.authentication);
       }
+      if (!isCurrent()) return;
       send({ op: op.identify, d: identify });
     } else if (message.op === op.identified) {
       connectionState = 'connected';
@@ -256,6 +257,7 @@
       if (socket) {
         const previous = socket;
         socket = null;
+        clearPending('obs_replaced');
         previous.close();
       }
       manualDisconnect = false;
@@ -320,7 +322,12 @@
       socket = connectedSocket;
       connectedSocket.addEventListener('message', event => {
         if (socket !== connectedSocket) return;
-        return handleMessage(event, nextConnection.password || '').catch(() => {
+        return handleMessage(
+          event,
+          nextConnection.password || '',
+          () => socket === connectedSocket
+        ).catch(() => {
+          if (socket !== connectedSocket) return;
           connectionState = 'error';
           notifyState();
         });

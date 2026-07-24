@@ -247,6 +247,43 @@ test('reports rejected OBS requests and ignores messages from replaced sockets',
   });
 });
 
+test('settles replaced requests and cannot send stale authentication to the new socket', async () => {
+  const harness = createSocketHarness();
+  const requestIds = ['initial', 'switch'];
+  let releaseDigest;
+  const digestGate = new Promise(resolve => { releaseDigest = resolve; });
+  const delayedCrypto = {
+    subtle: {
+      async digest(...args) {
+        await digestGate;
+        return globalThis.crypto.subtle.digest(...args);
+      }
+    }
+  };
+  const controller = createObsSceneProfiles({ invokeAction() {} }, {
+    createSocket: harness.createSocket,
+    createRequestId: () => requestIds.shift(),
+    crypto: delayedCrypto
+  });
+
+  controller.connect({ url: 'ws://localhost:4455', password: 'old-password' });
+  const oldSocket = harness.sockets[0];
+  await oldSocket.emit('message', { data: JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } }) });
+  const oldRequest = controller.setScene('Gameplay');
+  const staleHello = oldSocket.emit('message', { data: JSON.stringify({
+    op: 0,
+    d: { rpcVersion: 1, authentication: { salt: 'salt', challenge: 'challenge' } }
+  }) });
+  await Promise.resolve();
+
+  controller.connect({ url: 'ws://localhost:4455', password: 'new-password' });
+  const newSocket = harness.sockets[1];
+  assert.deepEqual(await oldRequest, { ok: false, error: 'obs_replaced' });
+  releaseDigest();
+  await staleHello;
+  assert.deepEqual(newSocket.sent, []);
+});
+
 test('times out unanswered requests and caps pending OBS work', async () => {
   const harness = createSocketHarness();
   const timers = [];
