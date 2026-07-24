@@ -1,0 +1,22 @@
+.reactive-motion-panel label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.reactive-motion-panel select,
+.reactive-motion-panel input[type="range"] {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.reactive-motion-panel .reactive-motion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reactive-motion-panel .reactive-motion-toggle input {
+  width: auto;
+  margin: 0;
+}
+
