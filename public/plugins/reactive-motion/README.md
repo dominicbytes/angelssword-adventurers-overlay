@@ -6,7 +6,7 @@ or other plugins.
 
 ## Byte Edition interface
 
-- `ASAPluginHost.getAudioInput()` supplies the already-authorized microphone node.
+- The `audio-level` event supplies the core's existing normalized microphone analysis.
 - `sendPluginEvent()` sends configuration and normalized level data to overlays.
 - `setMotionContribution()` and `clearMotionContribution()` own only this plugin's
   named motion channel.
@@ -20,4 +20,3 @@ split into its own repository later.
 ```console
 npm test
 ```
-

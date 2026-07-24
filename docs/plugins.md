@@ -42,7 +42,7 @@ browser targets expose `window.ASAPluginHost` with these version 1 capabilities:
 - `clearMotionContribution(pluginId)` removes that plugin's motion immediately.
 - `isTransportOpen()` reports whether the control WebSocket is connected.
 
-Relevant events are `audio-input`, `tracking-frame`, `transport-open`,
+Relevant events are `audio-input`, `audio-level`, `tracking-frame`, `transport-open`,
 `transport-closed`, and `plugin-event`. Tracking frames are local to the control
 page. The server keeps the latest event for each installed plugin and replays it
 when an overlay reconnects.

@@ -71,6 +71,17 @@ test('publishes sanitized tracking frames to local plugin subscribers', () => {
   assert.deepEqual(received, [frame]);
 });
 
+test('publishes the core microphone analysis without another analyser', () => {
+  const host = createPluginHost();
+  const received = [];
+  host.on('audio-level', level => received.push(level));
+
+  const level = { timestamp: 42, value: 0.4, speaking: true, typing: false };
+  host.emitAudioLevel(level);
+
+  assert.deepEqual(received, [level]);
+});
+
 test('delegates bounded motion contributions through the host interface', () => {
   const host = createPluginHost();
   const calls = [];

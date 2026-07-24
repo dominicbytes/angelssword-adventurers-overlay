@@ -1204,6 +1204,12 @@
     document.getElementById('mic-voice-icon').textContent = micIsSpeaking ? '🔊' : micIsTyping ? '⌨️' : '🔇';
     document.getElementById('mic-voice-label').textContent = micIsSpeaking
       ? 'Speaking' : micIsTyping ? 'Typing' : 'Idle';
+    window.ASAPluginHost?.emitAudioLevel({
+      timestamp: now,
+      value: pct / 100,
+      speaking: micIsSpeaking,
+      typing: micIsTyping
+    });
 
     // Send state change to overlay via WebSocket
     if (wasSpeaking !== micIsSpeaking || wasTyping !== micIsTyping) {

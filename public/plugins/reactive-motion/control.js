@@ -6,9 +6,6 @@
   const storageKey = 'as-plugin-reactive-motion';
   if (!host) return;
 
-  let analyser = null;
-  let samples = null;
-  let frameHandle = null;
   let lastLevelSentAt = 0;
   let currentLevel = 0;
 
@@ -36,45 +33,6 @@
     sendState();
   }
 
-  function stopMeter() {
-    if (frameHandle !== null) cancelAnimationFrame(frameHandle);
-    frameHandle = null;
-    try { analyser?.disconnect(); } catch {}
-    analyser = null;
-    samples = null;
-    currentLevel = 0;
-    sendState();
-  }
-
-  function readLevel(timestamp) {
-    frameHandle = null;
-    if (!analyser || !config.enabled) return;
-    analyser.getByteTimeDomainData(samples);
-    let energy = 0;
-    for (const sample of samples) {
-      const normalized = (sample - 128) / 128;
-      energy += normalized * normalized;
-    }
-    const rms = Math.sqrt(energy / samples.length);
-    if (timestamp - lastLevelSentAt >= 50) {
-      currentLevel = Math.min(1, rms * 8);
-      sendState();
-      lastLevelSentAt = timestamp;
-    }
-    frameHandle = requestAnimationFrame(readLevel);
-  }
-
-  function startMeter(input) {
-    stopMeter();
-    if (!config.enabled || !input?.audioContext || !input?.sourceNode) return;
-    analyser = input.audioContext.createAnalyser();
-    analyser.fftSize = 512;
-    analyser.smoothingTimeConstant = 0.65;
-    samples = new Uint8Array(analyser.fftSize);
-    input.sourceNode.connect(analyser);
-    frameHandle = requestAnimationFrame(readLevel);
-  }
-
   function buildPanel() {
     const mount = document.getElementById('plugin-panels');
     if (!mount) return;
@@ -97,7 +55,7 @@
         <label>Intensity <span data-value="intensity"></span>
           <input type="range" min="0" max="1" step="0.05" data-field="intensity">
         </label>
-        <p class="help-text">Uses the existing microphone source; it does not request another media permission.</p>
+        <p class="help-text">Uses the existing microphone analysis; it does not request another media permission.</p>
       </div>`;
     mount.appendChild(panel);
 
@@ -112,9 +70,8 @@
 
     enabled.addEventListener('change', () => {
       config.enabled = enabled.checked;
+      if (!config.enabled) currentLevel = 0;
       saveAndSendConfig();
-      if (config.enabled) startMeter(host.getAudioInput());
-      else stopMeter();
     });
     preset.addEventListener('change', () => {
       config.preset = preset.value;
@@ -128,8 +85,12 @@
   }
 
   host.on('transport-open', saveAndSendConfig);
-  host.on('audio-input', input => startMeter(input));
+  host.on('audio-level', audio => {
+    if (!config.enabled || audio.timestamp - lastLevelSentAt < 50) return;
+    currentLevel = Math.min(1, Math.max(0, Number(audio.value) || 0));
+    lastLevelSentAt = audio.timestamp;
+    sendState();
+  });
   buildPanel();
   if (host.isTransportOpen()) saveAndSendConfig();
-  if (config.enabled) startMeter(host.getAudioInput());
 })();

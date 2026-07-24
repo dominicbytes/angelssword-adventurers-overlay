@@ -129,6 +129,12 @@
       if (!frame || typeof frame.timestamp !== 'number') return false;
       emit('tracking-frame', frame);
       return true;
+    },
+
+    emitAudioLevel(level) {
+      if (!level || typeof level.timestamp !== 'number' || typeof level.value !== 'number') return false;
+      emit('audio-level', level);
+      return true;
     }
   });
 });
