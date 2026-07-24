@@ -104,6 +104,12 @@
         latestPluginEvents.set(message.pluginId, message);
       }
       emit('plugin-event', message);
+    },
+
+    emitTrackingFrame(frame) {
+      if (!frame || typeof frame.timestamp !== 'number') return false;
+      emit('tracking-frame', frame);
+      return true;
     }
   });
 });

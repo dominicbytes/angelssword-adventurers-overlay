@@ -257,27 +257,14 @@
     }, 1800);
   }
 
-  const proto = window.WebSocket && window.WebSocket.prototype;
-  if (proto && !proto.__asDeadzonePatched) {
-    const origSend = proto.send;
-    proto.send = function (data) {
-      try {
-        if (typeof data === 'string' && data.indexOf('webcam_tracking') !== -1) {
-          const msg = JSON.parse(data);
-          if (msg.type === 'webcam_tracking' && msg.blendShapes) {
-            lastRawBlendshapes = { ...msg.blendShapes };
-            pushHistory(lastRawBlendshapes);
-            msg.blendShapes = applyPipeline(msg.blendShapes);
-            data = JSON.stringify(msg);
-          }
-        }
-      } catch (e) {
-        console.warn('[pipeline] send patch error', e);
-      }
-      return origSend.call(this, data);
-    };
-    proto.__asDeadzonePatched = true;
-  }
+  window.AS_WebcamPipeline = Object.freeze({
+    process(map) {
+      if (!map || typeof map !== 'object') return map;
+      lastRawBlendshapes = { ...map };
+      pushHistory(lastRawBlendshapes);
+      return applyPipeline(map);
+    }
+  });
 
   function initUI() {
     restoreCalibration();

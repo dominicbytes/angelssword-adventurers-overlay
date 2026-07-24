@@ -216,6 +216,8 @@
   let webcamFrameCount = 0;
   let webcamLastFpsTime = 0;
   let lastFaceDetected = false;
+  let faceProcessorRegistered = false;
+  const trackingService = window.ASATrackingService;
 
   document.getElementById('btn-start-webcam').addEventListener('click', startWebcam);
   document.getElementById('btn-stop-webcam').addEventListener('click', stopWebcam);
@@ -256,7 +258,7 @@
         statusEl.textContent = 'Status: Tracking active ✓';
         statusEl.style.color = '#4ade80';
       }
-      processWebcamFrame();
+      trackingService.start(video);
     } catch (e) {
       console.error('Webcam error:', e);
       stopWebcam();
@@ -271,6 +273,7 @@
 
   function stopWebcam() {
     webcamActive = false;
+    trackingService.stop();
     if (webcamStream) {
       webcamStream.getTracks().forEach(t => t.stop());
       webcamStream = null;
@@ -310,21 +313,19 @@
       outputFaceBlendshapes: true,
       outputFacialTransformationMatrixes: false
     });
+    if (!faceProcessorRegistered) {
+      trackingService.registerProcessor('face', {
+        process: (video, timestamp) => faceLandmarker.detectForVideo(video, timestamp),
+        onResult: handleWebcamResult,
+        onError: error => console.warn('[webcam] Face inference failed:', error)
+      });
+      faceProcessorRegistered = true;
+    }
     console.log('[webcam] MediaPipe FaceLandmarker loaded');
   }
 
-  function processWebcamFrame() {
-    if (!webcamActive || !faceLandmarker) return;
-
-    const video = document.getElementById('webcam-video');
-    if (video.readyState < 2) {
-      requestAnimationFrame(processWebcamFrame);
-      return;
-    }
-
-    const now = performance.now();
-    const result = faceLandmarker.detectForVideo(video, now);
-
+  function handleWebcamResult(result, now) {
+    if (!webcamActive) return;
     // FPS counter
     webcamFrameCount++;
     if (now - webcamLastFpsTime >= 1000) {
@@ -335,8 +336,10 @@
       if (fpsEl) fpsEl.textContent = `${fps} FPS`;
     }
 
-    if (result.faceBlendshapes && result.faceBlendshapes.length > 0) {
-      const blendshapes = result.faceBlendshapes[0].categories;
+    const hasLandmarks = result.faceLandmarks && result.faceLandmarks.length > 0;
+    const hasBlendshapes = result.faceBlendshapes && result.faceBlendshapes.length > 0;
+    if (hasLandmarks || hasBlendshapes) {
+      const blendshapes = hasBlendshapes ? result.faceBlendshapes[0].categories : [];
 
       // Build blendshape map in the format the server expects (0-100 scale)
       const blendShapeMap = {};
@@ -344,6 +347,13 @@
         // MediaPipe uses camelCase (eyeBlinkLeft, etc.) — server already supports this
         blendShapeMap[bs.categoryName] = bs.score * 100;
       }
+
+      const geometry = window.AS_Geometry || window.AS_BrokeAss;
+      if (hasLandmarks && geometry) {
+        geometry.injectGeometryScores(blendShapeMap, result.faceLandmarks[0]);
+      }
+
+      const processedBlendShapes = window.AS_WebcamPipeline?.process(blendShapeMap) || blendShapeMap;
 
       // Face detected indicator
       if (!lastFaceDetected) {
@@ -359,9 +369,15 @@
       if (ws && ws.readyState === 1) {
         ws.send(JSON.stringify({
           type: 'webcam_tracking',
-          blendShapes: blendShapeMap
+          blendShapes: processedBlendShapes
         }));
       }
+      window.ASAPluginHost?.emitTrackingFrame({
+        timestamp: now,
+        faceDetected: true,
+        blendShapes: processedBlendShapes,
+        landmarks: hasLandmarks ? result.faceLandmarks[0] : null
+      });
     } else {
       if (lastFaceDetected) {
         lastFaceDetected = false;
@@ -371,9 +387,13 @@
           faceEl.style.color = '#f87171';
         }
       }
+      window.ASAPluginHost?.emitTrackingFrame({
+        timestamp: now,
+        faceDetected: false,
+        blendShapes: {},
+        landmarks: null
+      });
     }
-
-    requestAnimationFrame(processWebcamFrame);
   }
 
   // ── Threshold Sliders ───────────────────────────

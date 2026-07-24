@@ -59,3 +59,14 @@ test('replays an overlay event received before the plugin subscribes', () => {
 
   assert.deepEqual(received, [message]);
 });
+
+test('publishes sanitized tracking frames to local plugin subscribers', () => {
+  const host = createPluginHost();
+  const received = [];
+  host.on('tracking-frame', frame => received.push(frame));
+
+  const frame = { timestamp: 42, faceDetected: true, blendShapes: { jawOpen: 12 } };
+  host.emitTrackingFrame(frame);
+
+  assert.deepEqual(received, [frame]);
+});
