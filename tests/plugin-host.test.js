@@ -97,3 +97,28 @@ test('delegates bounded motion contributions through the host interface', () => 
     ['clear', 'reactive-motion']
   ]);
 });
+
+test('registers and invokes typed actions through one host interface', async () => {
+  const host = createPluginHost();
+  const unregister = host.registerAction('state.set', {
+    label: 'Set expression',
+    parameters: [{ name: 'state', options: ['happy', 'sad'] }],
+    invoke: parameters => ({ ok: true, state: parameters.state })
+  });
+
+  assert.deepEqual(host.listActions(), [{
+    id: 'state.set',
+    label: 'Set expression',
+    parameters: [{ name: 'state', options: ['happy', 'sad'] }]
+  }]);
+  assert.deepEqual(await host.invokeAction('state.set', { state: 'happy' }), {
+    ok: true,
+    state: 'happy'
+  });
+
+  unregister();
+  assert.deepEqual(await host.invokeAction('state.set', { state: 'sad' }), {
+    ok: false,
+    error: 'action_unavailable'
+  });
+});

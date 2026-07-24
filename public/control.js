@@ -33,6 +33,26 @@
     return true;
   });
 
+  const manualStates = ['neutral', 'happy', 'sad', 'surprised', 'eyes_closed', 'typing'];
+  window.ASAPluginHost?.registerAction('state.set', {
+    label: 'Set expression',
+    parameters: [{ name: 'state', label: 'Expression', options: manualStates }],
+    invoke: ({ state }) => {
+      if (!manualStates.includes(state)) return { ok: false, error: 'invalid_state' };
+      if (!ws || ws.readyState !== WebSocket.OPEN) return { ok: false, error: 'transport_closed' };
+      ws.send(JSON.stringify({ type: 'state_override', override: state }));
+      return { ok: true, state };
+    }
+  });
+  window.ASAPluginHost?.registerAction('state.clear', {
+    label: 'Return to automatic expression',
+    invoke: () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return { ok: false, error: 'transport_closed' };
+      ws.send(JSON.stringify({ type: 'state_override', override: null }));
+      return { ok: true };
+    }
+  });
+
   function connectWS() {
     ws = new WebSocket(wsUrl);
 

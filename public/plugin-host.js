@@ -9,6 +9,7 @@
   const events = new EventTarget();
   const displayResolvers = new Map();
   const latestPluginEvents = new Map();
+  const actions = new Map();
   let audioInput = null;
   let displayUpdater = null;
   let pluginSender = null;
@@ -93,6 +94,41 @@
       if (!motionCompositor || typeof pluginId !== 'string' || !pluginId) return false;
       motionCompositor.clear(pluginId);
       return true;
+    },
+
+    registerAction(actionId, definition) {
+      if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(actionId || '') ||
+          !definition || typeof definition.label !== 'string' ||
+          typeof definition.invoke !== 'function' || actions.has(actionId)) {
+        throw new TypeError(`Invalid or duplicate action '${actionId}'`);
+      }
+      const action = {
+        label: definition.label,
+        parameters: Array.isArray(definition.parameters) ? definition.parameters : [],
+        invoke: definition.invoke
+      };
+      actions.set(actionId, action);
+      return () => {
+        if (actions.get(actionId) === action) actions.delete(actionId);
+      };
+    },
+
+    listActions() {
+      return [...actions].map(([id, action]) => ({
+        id,
+        label: action.label,
+        parameters: action.parameters
+      }));
+    },
+
+    async invokeAction(actionId, parameters) {
+      const action = actions.get(actionId);
+      if (!action) return { ok: false, error: 'action_unavailable' };
+      try {
+        return await action.invoke(parameters || {});
+      } catch (error) {
+        return { ok: false, error: 'action_failed', message: error?.message || String(error) };
+      }
     },
 
     setPluginSender(sender) {

@@ -40,6 +40,12 @@ browser targets expose `window.ASAPluginHost` with these version 1 capabilities:
 - `setMotionContribution(pluginId, contribution)` contributes bounded `x`, `y`,
   `rotate`, and `scale` values without replacing another plugin's transform.
 - `clearMotionContribution(pluginId)` removes that plugin's motion immediately.
+- `registerAction(actionId, definition)` publishes a named operation and returns
+  an unregister function. Definitions provide a label, optional declarative
+  parameters, and an `invoke` function.
+- `listActions()` returns action metadata without exposing implementation details.
+- `invokeAction(actionId, parameters)` invokes a registered action and returns a
+  result object. Input plugins should use this instead of clicking core controls.
 - `isTransportOpen()` reports whether the control WebSocket is connected.
 
 Relevant events are `audio-input`, `audio-level`, `tracking-frame`, `transport-open`,
