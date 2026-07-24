@@ -1,0 +1,8 @@
+{
+  "id": "obs-scene-profiles",
+  "name": "OBS Scene-Aware Profiles",
+  "version": "0.1.0",
+  "controlScript": "control.js",
+  "controlStyle": "plugin.css",
+  "assetStates": []
+}
