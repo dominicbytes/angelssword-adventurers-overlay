@@ -65,6 +65,7 @@
 
   const overlayContainer = document.getElementById('overlay-container');
   const emoteLayer = document.getElementById('layer-emote');
+  window.ASAPluginHost?.setMotionCompositor(window.ASAMotionCompositor?.create(overlayContainer));
 
   function ensureLayer(state) {
     if (layers[state]) return layers[state];

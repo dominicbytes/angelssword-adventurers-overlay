@@ -70,3 +70,19 @@ test('publishes sanitized tracking frames to local plugin subscribers', () => {
 
   assert.deepEqual(received, [frame]);
 });
+
+test('delegates bounded motion contributions through the host interface', () => {
+  const host = createPluginHost();
+  const calls = [];
+  host.setMotionCompositor({
+    set: (ownerId, value) => calls.push(['set', ownerId, value]),
+    clear: ownerId => calls.push(['clear', ownerId])
+  });
+
+  assert.equal(host.setMotionContribution('reactive-motion', { y: -3 }), true);
+  assert.equal(host.clearMotionContribution('reactive-motion'), true);
+  assert.deepEqual(calls, [
+    ['set', 'reactive-motion', { y: -3 }],
+    ['clear', 'reactive-motion']
+  ]);
+});

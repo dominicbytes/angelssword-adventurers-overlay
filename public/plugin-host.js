@@ -12,6 +12,7 @@
   let audioInput = null;
   let displayUpdater = null;
   let pluginSender = null;
+  let motionCompositor = null;
   let transportOpen = false;
 
   function emit(name, detail) {
@@ -74,6 +75,24 @@
 
     requestDisplayUpdate() {
       if (displayUpdater) displayUpdater();
+    },
+
+    setMotionCompositor(compositor) {
+      motionCompositor = compositor && typeof compositor.set === 'function' && typeof compositor.clear === 'function'
+        ? compositor
+        : null;
+    },
+
+    setMotionContribution(pluginId, contribution) {
+      if (!motionCompositor || typeof pluginId !== 'string' || !pluginId) return false;
+      motionCompositor.set(pluginId, contribution);
+      return true;
+    },
+
+    clearMotionContribution(pluginId) {
+      if (!motionCompositor || typeof pluginId !== 'string' || !pluginId) return false;
+      motionCompositor.clear(pluginId);
+      return true;
     },
 
     setPluginSender(sender) {

@@ -37,11 +37,15 @@ browser targets expose `window.ASAPluginHost` with these version 1 capabilities:
 - `registerDisplayStateResolver(pluginId, resolver)` lets an overlay plugin select
   one of the model assets declared in `assetStates`.
 - `requestDisplayUpdate()` asks the overlay to evaluate its display state again.
+- `setMotionContribution(pluginId, contribution)` contributes bounded `x`, `y`,
+  `rotate`, and `scale` values without replacing another plugin's transform.
+- `clearMotionContribution(pluginId)` removes that plugin's motion immediately.
 - `isTransportOpen()` reports whether the control WebSocket is connected.
 
-Relevant events are `audio-input`, `transport-open`, `transport-closed`, and
-`plugin-event`. The server keeps the latest event for each installed plugin and
-replays it when an overlay reconnects.
+Relevant events are `audio-input`, `tracking-frame`, `transport-open`,
+`transport-closed`, and `plugin-event`. Tracking frames are local to the control
+page. The server keeps the latest event for each installed plugin and replays it
+when an overlay reconnects.
 
 Browser plugins are trusted local code with the same page access as AS Adventurer.
 Only install plugins from sources you trust. Restart AS Adventurer after installing,
