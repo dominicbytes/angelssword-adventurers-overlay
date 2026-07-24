@@ -29,6 +29,7 @@ lifecycle initialization and plugin replay through the guarded sender.
 Plugins should depend only on documented host interfaces:
 
 - Plugin events and shared audio through `ASAPluginHost` version 1.
+- Named actions for input plugins, including expression set and clear operations.
 - Named, composable motion contributions.
 - Local sanitized tracking-frame subscriptions.
 - The shared tracking processor scheduler for future camera processors.
@@ -55,10 +56,10 @@ repository without rewriting its source.
 ## Plugin status
 
 - Reactive Motion Effects: first working slice included at version `0.1.0`.
-- Universal Input Mapper: action-registry foundation next.
+- Universal Input Mapper: first keyboard-to-action slice included at version `0.1.0`.
 - OBS Scene-Aware Profiles: planned against lifecycle PR 3 and backpressure PR 5.
 - Gaze and Head Parallax: tracking seam ready; plugin implementation pending.
 - Hand Gesture Triggers: tracking processor seam ready; implementation pending.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
-- Rule Graph and Sequencer: pending action registry.
+- Rule Graph and Sequencer: action-registry seam ready; implementation pending.
 - VeadoTube Mini Importer: independently implementable; fixture-driven work pending.
