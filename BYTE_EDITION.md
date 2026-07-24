@@ -58,7 +58,12 @@ repository without rewriting its source.
 - Reactive Motion Effects: first working slice included at version `0.1.0`.
 - Universal Input Mapper: keyboard foundation complete at version `0.2.0` with
   multiple mappings, contexts, press/hold/toggle modes, conflicts, and import/export.
-- OBS Scene-Aware Profiles: planned against lifecycle PR 3 and backpressure PR 5.
+- OBS Scene-Aware Profiles: OBS WebSocket 5.x client, scene/action profiles,
+  local-only configuration, host actions, reconnects, collection-change pauses,
+  and backpressure protection included at version `0.1.0`. Mock protocol tests
+  are complete. The local OBS 32.2.0 checkout contains obs-websocket 5.7.4
+  source, but its current lite build does not contain the plugin DLL, so the
+  live compatibility run remains pending a WebSocket-enabled OBS build.
 - Gaze and Head Parallax: tracking seam ready; plugin implementation pending.
 - Hand Gesture Triggers: tracking processor seam ready; implementation pending.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
@@ -75,8 +80,9 @@ GitHub repositories will be created later.
 
 Implementation order:
 
-1. Add OBS Scene-Aware Profiles through OBS WebSocket 5.x. Verify reconnect,
-   authentication, lifecycle, and backpressure behavior against mocks and local OBS.
+1. Run the final OBS Scene-Aware Profiles live check once the local OBS build
+   includes obs-websocket. Mock authentication, lifecycle, reconnect, and
+   backpressure coverage is complete.
 2. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
    composes bounded motion without opening another camera stream.
 3. Add Hand Gesture Triggers without opening a second webcam stream. Verify
