@@ -1,0 +1,9 @@
+{
+  "id": "gaze-head-parallax",
+  "name": "Gaze and Head Parallax",
+  "version": "0.1.0",
+  "controlScript": "control.js",
+  "overlayScript": "overlay.js",
+  "controlStyle": "plugin.css",
+  "assetStates": []
+}

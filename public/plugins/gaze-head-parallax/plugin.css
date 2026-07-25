@@ -1,0 +1,18 @@
+.gaze-head-parallax-panel label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.gaze-head-parallax-panel input[type="range"] {
+  width: 100%;
+}
+
+.gaze-head-parallax-panel .gaze-parallax-directions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.gaze-head-parallax-panel .gaze-parallax-directions label {
+  margin-bottom: 4px;
+}
