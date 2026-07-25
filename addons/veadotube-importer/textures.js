@@ -171,7 +171,7 @@ class BitReader {
         throw readerError('invalid_vdd_texture', this.sourceOffset, 'Unexpected end of VDD channel');
       }
       const byte = this.data[Math.floor(this.bitOffset / 8)];
-      value = (value << 1) | ((byte >>> (this.bitOffset % 8)) & 1);
+      value |= ((byte >>> (this.bitOffset % 8)) & 1) << index;
       this.bitOffset += 1;
     }
     return value;

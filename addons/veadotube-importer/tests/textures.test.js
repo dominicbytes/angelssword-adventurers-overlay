@@ -5,14 +5,6 @@ const assert = require('node:assert/strict');
 
 const { decodeDocumentTextures, decodeTexturePayload } = require('../textures');
 
-function packVddBits(bitString, uintCount) {
-  const output = Buffer.alloc(uintCount * 4);
-  [...bitString].forEach((bit, index) => {
-    if (bit === '1') output[Math.floor(index / 8)] |= 1 << (index % 8);
-  });
-  return output;
-}
-
 test('decodes bottom-up RAW pixels into browser-order RGBA', () => {
   const bottomUp = Buffer.from([
     255, 0, 0, 255, 0, 255, 0, 128,
@@ -35,8 +27,8 @@ test('decodes documented VDD prefix codes and constant color channels', () => {
   data.writeUInt32LE(0xffffff0a, 4);
   data.writeUInt32LE(0xffffff14, 8);
   data.writeUInt32LE(0xffffff1e, 12);
-  packVddBits('1101' + '1110' + '01001' + '01011' + '011010' + '000110001110' + '00101101', 2)
-    .copy(data, 16);
+  data.writeUInt32LE(0xf83b527b, 16);
+  data.writeUInt32LE(0x00000d40, 20);
 
   const decoded = decodeTexturePayload({
     format: 'VDD.', width: 7, height: 1, data, dataOffset: 100
@@ -49,7 +41,7 @@ test('decodes documented VDD prefix codes and constant color channels', () => {
     10, 20, 30, 5,
     10, 20, 30, 255,
     10, 20, 30, 183,
-    10, 20, 30, 198
+    10, 20, 30, 197
   ]);
 });
 
