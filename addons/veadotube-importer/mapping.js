@@ -28,25 +28,31 @@ function createImportPlan(document, selections, options) {
     if (!target) {
       unmappedStates.push({ stateId: state.id, name: state.name, imageIds: [...state.images] });
       state.images.forEach((imageId, index) => {
-        reviewAssets.push(reviewAsset(state.id, imageId, IMAGE_ROLES[index], 'unmapped_state'));
+        reviewAssets.push(reviewAsset(
+          state.id, imageId, IMAGE_ROLES[index], 'unmapped_state', imagesById
+        ));
       });
       warnings.push({ code: 'unmapped_state', stateId: state.id });
       continue;
     }
-    assets.push(plannedAsset(`${target}_idle`, state.images[0], imagesById));
-    assets.push(plannedAsset(`${target}_speaking`, state.images[1], imagesById));
+    assets.push(plannedAsset(`${target}_idle`, state.images[0], imagesById, state.id, 'idle'));
+    assets.push(plannedAsset(
+      `${target}_speaking`, state.images[1], imagesById, state.id, 'speaking'
+    ));
     if (target === 'neutral') {
-      assets.push(plannedAsset('eyes_closed', state.images[2], imagesById));
+      assets.push(plannedAsset(
+        'eyes_closed', state.images[2], imagesById, state.id, 'blinking_idle'
+      ));
     } else {
       reviewAssets.push(reviewAsset(
-        state.id, state.images[2], 'blinking_idle', 'unrepresentable_blink_variant'
+        state.id, state.images[2], 'blinking_idle', 'unrepresentable_blink_variant', imagesById
       ));
       warnings.push({
         code: 'unrepresentable_blink_variant', stateId: state.id, imageId: state.images[2]
       });
     }
     reviewAssets.push(reviewAsset(
-      state.id, state.images[3], 'blinking_speaking', 'unrepresentable_blink_variant'
+      state.id, state.images[3], 'blinking_speaking', 'unrepresentable_blink_variant', imagesById
     ));
     warnings.push({
       code: 'unrepresentable_blink_variant', stateId: state.id, imageId: state.images[3]
@@ -59,11 +65,19 @@ function createImportPlan(document, selections, options) {
       });
     }
   }
+  for (const asset of reviewAssets) {
+    if (asset.kind === 'animated_unresolved') {
+      warnings.push({
+        code: 'animated_output_unresolved', role: asset.role, imageId: asset.sourceImageId
+      });
+    }
+  }
 
   return {
     schemaVersion: 1,
+    conversion: conversionReport(document),
     mappings,
-    assets: assets.sort((left, right) => left.state.localeCompare(right.state)),
+    assets: assets.sort((left, right) => compareText(left.state, right.state)),
     reviewAssets,
     unmappedStates,
     effectSuggestions: collectEffects(document.states),
@@ -99,6 +113,9 @@ function validateSelections(selections, statesById, assetStates) {
     if (!statesById.has(selection.stateId)) {
       throw planError('missing_state', `Mini state ${selection.stateId} does not exist`);
     }
+    if (!isSafeName(selection.target)) {
+      throw planError('invalid_target', `Target ${selection.target} is not a safe asset name`);
+    }
     if (!CORE_TARGETS.has(selection.target) && !(
       assetStates.has(`${selection.target}_idle`) && assetStates.has(`${selection.target}_speaking`)
     )) {
@@ -115,30 +132,80 @@ function planError(code, message) {
   return error;
 }
 
-function plannedAsset(state, imageId, imagesById) {
+function plannedAsset(state, imageId, imagesById, stateId, role) {
   const image = imagesById.get(imageId);
-  const isStatic = image.frames.length === 1;
+  if (!image) {
+    const error = planError('missing_image', `State ${stateId} has no image for ${role}`);
+    error.stateId = stateId;
+    error.role = role;
+    error.imageId = imageId;
+    throw error;
+  }
+  const summary = imageSummary(image);
   return {
     state,
-    fileName: isStatic ? `${state}.png` : null,
+    fileName: summary.kind === 'static_png' ? `${state}.png` : null,
     sourceImageId: imageId,
+    ...summary
+  };
+}
+
+function reviewAsset(stateId, imageId, role, reason, imagesById) {
+  const image = imagesById.get(imageId);
+  if (!image) {
+    return {
+      stateId, sourceImageId: imageId, role, fileName: null, reason,
+      kind: 'missing', width: null, height: null, frameCount: 0,
+      duration: 0, loopCount: 0, timingChange: 'unresolved'
+    };
+  }
+  const summary = imageSummary(image);
+  return {
+    stateId,
+    sourceImageId: imageId,
+    role,
+    fileName: summary.kind === 'static_png'
+      ? `review/state-${stateId}-${role.replaceAll('_', '-')}.png`
+      : null,
+    reason,
+    ...summary
+  };
+}
+
+function imageSummary(image) {
+  const isStatic = image.frames.length === 1;
+  return {
     kind: isStatic ? 'static_png' : 'animated_unresolved',
     width: image.width,
     height: image.height,
     frameCount: image.frames.length,
     duration: image.frames.reduce((total, frame) => total + frame.duration, 0),
-    loopCount: image.loopCount
+    loopCount: image.loopCount,
+    timingChange: isStatic ? 'none' : 'unresolved'
   };
 }
 
-function reviewAsset(stateId, imageId, role, reason) {
+function conversionReport(document) {
+  const sourceFormats = new Set();
+  for (const image of document.images) {
+    for (const frame of image.frames) sourceFormats.add(frame.texture.format);
+  }
   return {
-    stateId,
-    sourceImageId: imageId,
-    role,
-    fileName: `review/state-${stateId}-${role.replaceAll('_', '-')}.png`,
-    reason
+    sourceFormats: [...sourceFormats].sort(compareText),
+    decodedPixelFormat: 'RGBA8',
+    sourceRowOrder: 'bottom_up',
+    decodedRowOrder: 'top_down',
+    colorChannels: 'preserved',
+    alphaChannel: 'preserved'
   };
+}
+
+function isSafeName(value) {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9_-]{0,63}$/.test(value);
+}
+
+function compareText(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function collectEffects(states) {
@@ -165,4 +232,4 @@ function collectShortcuts(states) {
   })));
 }
 
-module.exports = { CORE_TARGETS, createImportPlan, suggestMappings };
+module.exports = { createImportPlan, suggestMappings };
