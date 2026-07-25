@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { DEFAULT_LIMITS, inspectBytes } = require('./inventory');
+const { decodeMiniAvatar } = require('./mini');
 
 function inspectFile(sourcePath, options) {
   const limits = { ...DEFAULT_LIMITS, ...(options || {}) };
@@ -19,14 +20,15 @@ function inspectFile(sourcePath, options) {
   const counts = new Map();
   for (const chunk of report.chunks) counts.set(chunk.type, (counts.get(chunk.type) || 0) + 1);
   return {
-    importerVersion: '0.1.0',
+    importerVersion: '0.2.0',
     source: {
       name: path.basename(sourcePath),
       byteLength: bytes.length,
       sha256: crypto.createHash('sha256').update(bytes).digest('hex')
     },
     ...report,
-    chunkTypes: Object.fromEntries([...counts].sort(([left], [right]) => left.localeCompare(right)))
+    chunkTypes: Object.fromEntries([...counts].sort(([left], [right]) => left.localeCompare(right))),
+    mini: report.format === 'mini' ? decodeMiniAvatar(bytes, report, limits) : null
   };
 }
 

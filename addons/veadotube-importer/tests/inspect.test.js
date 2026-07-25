@@ -8,14 +8,23 @@ const path = require('node:path');
 const { inspectFile } = require('../inspect');
 
 function miniFixture() {
-  const header = Buffer.alloc(12);
-  header.writeUInt32LE(1, 0);
-  header.write('MLST', 4, 4, 'ascii');
-  header.writeUInt32LE(4, 8);
+  function chunk(id, type, data) {
+    const header = Buffer.alloc(12);
+    header.writeUInt32LE(id, 0);
+    header.write(type, 4, 4, 'ascii');
+    header.writeUInt32LE(data.length, 8);
+    return Buffer.concat([header, data]);
+  }
+  const list = Buffer.alloc(4);
+  list.writeUInt32LE(3);
+  const state = Buffer.concat([
+    Buffer.from([4]), Buffer.from('Idle'), Buffer.from([0]), Buffer.alloc(32),
+    Buffer.from([0, 0, 0, 0, 0]), Buffer.from('PRES')
+  ]);
   return Buffer.concat([
     Buffer.from('VEADOTUBE', 'ascii'),
-    header,
-    Buffer.from([2, 0, 0, 0]),
+    chunk(2, 'MLST', list),
+    chunk(3, 'MSTA', state),
     Buffer.alloc(12)
   ]);
 }
@@ -33,7 +42,8 @@ test('inspects a file deterministically without changing the source', t => {
 
   assert.deepEqual(second, first);
   assert.equal(first.source.sha256, expectedHash);
-  assert.deepEqual(first.chunkTypes, { MLST: 1 });
+  assert.deepEqual(first.chunkTypes, { MLST: 1, MSTA: 1 });
+  assert.equal(first.mini.states[0].name, 'Idle');
   assert.deepEqual(fs.readFileSync(sourcePath), source);
 });
 
