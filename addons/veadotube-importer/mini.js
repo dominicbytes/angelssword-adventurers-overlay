@@ -22,6 +22,9 @@ function decodeMiniAvatar(bytes, inventory, options) {
     maxDimension: 16384,
     maxFrames: 1024,
     maxTotalFrames: 10000,
+    maxTotalEffects: 4096,
+    maxTotalEffectValues: 65536,
+    maxTotalShortcuts: 4096,
     maxFrameDuration: 3600,
     maxAnimationDuration: 24 * 60 * 60,
     maxLoopCount: 100000,
@@ -48,6 +51,7 @@ function decodeMiniAvatar(bytes, inventory, options) {
     throw readerError('invalid_state_count', listChunk.dataOffset, 'Invalid Mini state list length');
   }
   const listReader = readerFor(bytes, listChunk, limits);
+  const reportBudget = { effects: 0, effectValues: 0, shortcuts: 0 };
   const stateReferences = [];
   while (listReader.remaining) {
     const referenceOffset = listReader.offset;
@@ -59,7 +63,7 @@ function decodeMiniAvatar(bytes, inventory, options) {
     if (!stateChunk || stateChunk.type !== 'MSTA') {
       throw referenceError(reference.offset, reference.id, 'MSTA');
     }
-    return decodeState(bytes, stateChunk, chunksById, limits);
+    return decodeState(bytes, stateChunk, chunksById, limits, reportBudget);
   });
   const referencedImageIds = [...new Set(states.flatMap(state => (
     [...state.thumbnails, ...state.images].filter(referenceId => referenceId !== 0)
@@ -95,7 +99,7 @@ function readerFor(bytes, chunk, limits) {
   return new BinaryReader(bytes, chunk.dataOffset, chunk.dataOffset + chunk.length, limits);
 }
 
-function decodeState(bytes, chunk, chunksById, limits) {
+function decodeState(bytes, chunk, chunksById, limits, reportBudget) {
   const reader = readerFor(bytes, chunk, limits);
   const name = reader.string();
   const rawFlags = reader.u8();
@@ -108,11 +112,11 @@ function decodeState(bytes, chunk, chunksById, limits) {
   const undocumentedValues = extendedLayout
     ? Array.from({ length: 3 }, () => reader.f64())
     : [];
-  const closedEffects = readEffectList(reader, chunksById, limits);
-  const openEffects = readEffectList(reader, chunksById, limits);
-  const closedToOpenTransitions = readEffectList(reader, chunksById, limits);
-  const openToClosedTransitions = readEffectList(reader, chunksById, limits);
-  const shortcuts = readShortcuts(reader, limits);
+  const closedEffects = readEffectList(reader, chunksById, limits, reportBudget);
+  const openEffects = readEffectList(reader, chunksById, limits, reportBudget);
+  const closedToOpenTransitions = readEffectList(reader, chunksById, limits, reportBudget);
+  const openToClosedTransitions = readEffectList(reader, chunksById, limits, reportBudget);
+  const shortcuts = readShortcuts(reader, limits, reportBudget);
   const shortcutMode = reader.fourCC();
   if (reader.remaining !== 0) {
     throw readerError('unexpected_state_data', reader.offset, 'Unexpected bytes at end of MSTA chunk');
@@ -170,8 +174,12 @@ function readCount(reader, limit, code) {
   return count;
 }
 
-function readEffectList(reader, chunksById, limits) {
+function readEffectList(reader, chunksById, limits, reportBudget) {
   const count = readCount(reader, limits.maxListEntries, 'effect_limit');
+  reportBudget.effects += count;
+  if (reportBudget.effects > limits.maxTotalEffects) {
+    throw readerError('effect_budget_exceeded', reader.offset, 'Total effects exceed configured limit');
+  }
   const effects = [];
   for (let index = 0; index < count; index += 1) {
     const type = reader.string();
@@ -188,6 +196,13 @@ function readEffectList(reader, chunksById, limits) {
       presetId = reader.string();
     }
     const valueCount = readCount(reader, limits.maxEffectValues, 'effect_value_limit');
+    reportBudget.effectValues += valueCount;
+    if (reportBudget.effectValues > limits.maxTotalEffectValues) {
+      throw readerError(
+        'effect_value_budget_exceeded', reader.offset,
+        'Total effect values exceed configured limit'
+      );
+    }
     const values = Array.from({ length: valueCount }, () => reader.f64());
     effects.push({
       type,
@@ -200,8 +215,12 @@ function readEffectList(reader, chunksById, limits) {
   return effects;
 }
 
-function readShortcuts(reader, limits) {
+function readShortcuts(reader, limits, reportBudget) {
   const count = readCount(reader, limits.maxListEntries, 'shortcut_limit');
+  reportBudget.shortcuts += count;
+  if (reportBudget.shortcuts > limits.maxTotalShortcuts) {
+    throw readerError('shortcut_budget_exceeded', reader.offset, 'Total shortcuts exceed configured limit');
+  }
   return Array.from({ length: count }, () => ({
     provider: reader.string(),
     signal: reader.string()

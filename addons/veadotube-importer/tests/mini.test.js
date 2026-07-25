@@ -35,16 +35,27 @@ function miniFixture(options) {
   const frameCount = options?.frameCount || 1;
   const frameDuration = options?.frameDuration ?? 0.1;
   const loopCount = options?.loopCount || 0;
+  const effectCounts = options?.effectCounts || [1, 0, 0, 0];
+  const effectValueCount = options?.effectValueCount ?? 2;
+  const shortcutCount = options?.shortcutCount ?? 1;
+  const effectList = count => Buffer.concat([
+    Buffer.from([count]),
+    ...Array.from({ length: count }, () => Buffer.concat([
+      string('randommove'), Buffer.from([1, effectValueCount]),
+      ...Array.from({ length: effectValueCount }, (_, index) => f64(index + 1.25))
+    ]))
+  ]);
   const state = Buffer.concat([
     string('Happy'),
     Buffer.from([0x7]),
     ...(extendedValues ? [Buffer.alloc(3)] : []),
     ...imageIds.map(u32),
     ...(extendedValues ? extendedValues.map(f64) : []),
-    Buffer.from([1]),
-    string('randommove'), Buffer.from([1, 2]), f64(2.5), f64(1.25),
-    Buffer.from([0, 0, 0]),
-    Buffer.from([1]), string('keyboard'), string('Space'),
+    ...effectCounts.map(effectList),
+    Buffer.from([shortcutCount]),
+    ...Array.from({ length: shortcutCount }, () => Buffer.concat([
+      string('keyboard'), string('Space')
+    ])),
     Buffer.from('TGL.', 'ascii')
   ]);
   const parts = [
@@ -84,7 +95,7 @@ test('decodes Mini state images, effects, shortcuts, and flags', () => {
     images: [14, 15, 16, 17],
     closedEffects: [{
       type: 'randommove', active: true, presetId: null, customPresetChunkId: null,
-      values: [2.5, 1.25]
+      values: [1.25, 2.25]
     }],
     openEffects: [],
     closedToOpenTransitions: [],
@@ -146,6 +157,23 @@ test('rejects total frame amplification even when textures are shared', () => {
   assert.throws(() => decodeMiniAvatar(bytes, parseChunkInventory(bytes), {
     maxTotalFrames: 15
   }), error => error.code === 'frame_budget_exceeded');
+});
+
+test('rejects cumulative effect, value, and shortcut report amplification', () => {
+  const effects = miniFixture({ effectCounts: [1, 1, 1, 1] });
+  assert.throws(() => decodeMiniAvatar(effects, parseChunkInventory(effects), {
+    maxTotalEffects: 3
+  }), error => error.code === 'effect_budget_exceeded');
+
+  const values = miniFixture({ effectCounts: [1, 1, 1, 1], effectValueCount: 2 });
+  assert.throws(() => decodeMiniAvatar(values, parseChunkInventory(values), {
+    maxTotalEffectValues: 7
+  }), error => error.code === 'effect_value_budget_exceeded');
+
+  const shortcuts = miniFixture({ shortcutCount: 2 });
+  assert.throws(() => decodeMiniAvatar(shortcuts, parseChunkInventory(shortcuts), {
+    maxTotalShortcuts: 1
+  }), error => error.code === 'shortcut_budget_exceeded');
 });
 
 test('rejects excessive frame duration and loop counts', () => {
