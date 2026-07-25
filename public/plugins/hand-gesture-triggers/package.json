@@ -1,0 +1,13 @@
+{
+  "name": "@as-adventurer/hand-gesture-triggers-plugin",
+  "version": "0.1.0",
+  "description": "Hand gesture action triggers for AS Adventurer Byte Edition",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "asAdventurer": {
+    "pluginHostVersion": 1,
+    "distribution": "byte-edition"
+  }
+}

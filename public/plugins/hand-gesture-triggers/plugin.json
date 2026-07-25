@@ -1,0 +1,8 @@
+{
+  "id": "hand-gesture-triggers",
+  "name": "Hand Gesture Triggers",
+  "version": "0.1.0",
+  "controlScript": "control.js",
+  "controlStyle": "plugin.css",
+  "assetStates": []
+}

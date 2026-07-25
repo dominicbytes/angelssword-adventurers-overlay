@@ -1,0 +1,17 @@
+.hand-gesture-triggers-panel label {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.hand-gesture-triggers-panel input[type="number"],
+.hand-gesture-triggers-panel textarea {
+  box-sizing: border-box;
+  display: block;
+  margin-top: 4px;
+  width: 100%;
+}
+
+.hand-gesture-triggers-panel textarea {
+  font-family: monospace;
+  resize: vertical;
+}
