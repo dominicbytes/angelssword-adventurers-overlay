@@ -10,7 +10,7 @@ function composeStaticImage(image, texture, options) {
   }
   const canvasPixels = checkedPixels(image.width, image.height, 'canvas');
   const texturePixels = checkedPixels(texture.width, texture.height, 'texture');
-  const maxCanvasPixels = options?.maxCanvasPixels ?? 64 * 1024 * 1024;
+  const maxCanvasPixels = options?.maxCanvasPixels ?? 8 * 1024 * 1024;
   if (canvasPixels > maxCanvasPixels) {
     throw compositionError('pixel_budget_exceeded', 'Composed canvas exceeds configured limit');
   }

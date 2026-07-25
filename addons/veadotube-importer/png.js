@@ -57,11 +57,15 @@ function validatePng(input, options) {
     if (length > 0x7fffffff || chunkEnd > bytes.length) {
       throw pngError('truncated_png', 'PNG chunk exceeds source bounds');
     }
+    limits.chunkCount += 1;
+    if (limits.chunkCount > limits.maxChunks) {
+      throw pngError('png_chunk_limit_exceeded', 'PNG chunk count exceeds configured limit');
+    }
     const typeBytes = bytes.subarray(offset + 4, offset + 8);
-    const type = typeBytes.toString('ascii');
+    const type = readChunkType(typeBytes);
     const data = bytes.subarray(dataOffset, dataEnd);
     const expectedCrc = bytes.readUInt32BE(dataEnd);
-    if (crc32(Buffer.concat([typeBytes, data])) !== expectedCrc) {
+    if (crc32(typeBytes, data) !== expectedCrc) {
       throw pngError('invalid_png_crc', `Invalid ${type} chunk CRC`);
     }
     if (type === 'IHDR') {
@@ -93,7 +97,8 @@ function validatePng(input, options) {
   const expectedLength = (rowBytes + 1) * header.height;
   let scanlines;
   try {
-    scanlines = zlib.inflateSync(Buffer.concat(imageData), { maxOutputLength: expectedLength });
+    const compressed = imageData.length === 1 ? imageData[0] : Buffer.concat(imageData);
+    scanlines = zlib.inflateSync(compressed, { maxOutputLength: expectedLength });
   } catch {
     throw pngError('invalid_png_data', 'PNG image data could not be decompressed');
   }
@@ -148,9 +153,23 @@ function validateDimensions(width, height, limits) {
 function pngLimits(options) {
   return {
     maxDimension: options?.maxDimension ?? 16384,
-    maxPixels: options?.maxPixels ?? 64 * 1024 * 1024,
-    maxPngBytes: options?.maxPngBytes ?? 256 * 1024 * 1024
+    maxPixels: options?.maxPixels ?? 8 * 1024 * 1024,
+    maxPngBytes: options?.maxPngBytes ?? 64 * 1024 * 1024,
+    maxChunks: options?.maxChunks ?? 10000,
+    chunkCount: 0
   };
+}
+
+function readChunkType(typeBytes) {
+  for (const byte of typeBytes) {
+    if (!((byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a))) {
+      throw pngError('invalid_png_chunk_type', 'PNG chunk type must contain ASCII letters');
+    }
+  }
+  if ((typeBytes[2] & 0x20) !== 0) {
+    throw pngError('invalid_png_chunk_type', 'PNG chunk type uses the reserved bit');
+  }
+  return typeBytes.toString('latin1');
 }
 
 function pngChunk(type, data) {
@@ -159,13 +178,15 @@ function pngChunk(type, data) {
   output.writeUInt32BE(data.length, 0);
   typeBytes.copy(output, 4);
   data.copy(output, 8);
-  output.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])), 8 + data.length);
+  output.writeUInt32BE(crc32(typeBytes, data), 8 + data.length);
   return output;
 }
 
-function crc32(bytes) {
+function crc32(...parts) {
   let crc = 0xffffffff;
-  for (const byte of bytes) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  for (const bytes of parts) {
+    for (const byte of bytes) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
   return (crc ^ 0xffffffff) >>> 0;
 }
 

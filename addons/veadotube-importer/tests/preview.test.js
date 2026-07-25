@@ -65,9 +65,11 @@ test('rejects unsafe, duplicate, and excessive preview plans before yielding fil
   assert.throws(() => [...generateStaticPreviews(bytes, document, {
     assets: [{ ...asset, fileName: '../escape.png' }], reviewAssets: []
   })], error => error.code === 'invalid_preview_filename');
-  assert.throws(() => [...generateStaticPreviews(bytes, document, {
+  const duplicateGenerator = generateStaticPreviews(bytes, document, {
     assets: [asset, asset], reviewAssets: []
-  })], error => error.code === 'duplicate_preview_filename');
+  });
+  assert.throws(() => duplicateGenerator.next(),
+    error => error.code === 'duplicate_preview_filename');
   assert.throws(() => [...generateStaticPreviews(bytes, document, {
     assets: [asset], reviewAssets: []
   }, { maxPreviewCount: 0 })], error => error.code === 'preview_count_exceeded');
