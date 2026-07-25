@@ -122,3 +122,27 @@ test('registers and invokes typed actions through one host interface', async () 
     error: 'action_unavailable'
   });
 });
+
+test('delegates namespaced plugin processors to the shared tracking scheduler', () => {
+  const host = createPluginHost();
+  const registrations = [];
+  const unregister = () => {};
+  host.setTrackingProcessorRegistrar((processorId, definition) => {
+    registrations.push([processorId, definition]);
+    return unregister;
+  });
+  const definition = {
+    everyNFrames: 2,
+    process: () => ({ gestures: [] })
+  };
+
+  assert.equal(
+    host.registerTrackingProcessor('hand-gesture-triggers', definition),
+    unregister
+  );
+  assert.deepEqual(registrations, [[
+    'plugin:hand-gesture-triggers',
+    definition
+  ]]);
+  assert.equal(host.registerTrackingProcessor('face', null), null);
+});

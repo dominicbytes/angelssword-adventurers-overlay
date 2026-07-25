@@ -237,6 +237,9 @@
   let lastFaceDetected = false;
   let faceProcessorRegistered = false;
   const trackingService = window.ASATrackingService;
+  window.ASAPluginHost?.setTrackingProcessorRegistrar((processorId, definition) => (
+    trackingService.registerProcessor(processorId, definition)
+  ));
 
   document.getElementById('btn-start-webcam').addEventListener('click', startWebcam);
   document.getElementById('btn-stop-webcam').addEventListener('click', stopWebcam);

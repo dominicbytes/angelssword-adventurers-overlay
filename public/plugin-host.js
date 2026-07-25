@@ -14,6 +14,7 @@
   let displayUpdater = null;
   let pluginSender = null;
   let motionCompositor = null;
+  let trackingProcessorRegistrar = null;
   let transportOpen = false;
 
   function emit(name, detail) {
@@ -94,6 +95,17 @@
       if (!motionCompositor || typeof pluginId !== 'string' || !pluginId) return false;
       motionCompositor.clear(pluginId);
       return true;
+    },
+
+    setTrackingProcessorRegistrar(registrar) {
+      trackingProcessorRegistrar = typeof registrar === 'function' ? registrar : null;
+    },
+
+    registerTrackingProcessor(pluginId, definition) {
+      if (!trackingProcessorRegistrar ||
+          !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(pluginId || '') ||
+          !definition || typeof definition.process !== 'function') return null;
+      return trackingProcessorRegistrar(`plugin:${pluginId}`, definition);
     },
 
     registerAction(actionId, definition) {

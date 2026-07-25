@@ -33,6 +33,8 @@ Plugins should depend only on documented host interfaces:
 - Named, composable motion contributions.
 - Local sanitized tracking-frame subscriptions.
 - The shared tracking processor scheduler for future camera processors.
+- Namespaced plugin processor registration without exposing webcam lifecycle
+  ownership.
 
 The webcam has one owner, one MediaPipe face processor, one animation scheduler,
 and one control WebSocket. Plugins must not open duplicate media streams or
