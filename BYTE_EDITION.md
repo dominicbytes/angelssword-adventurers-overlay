@@ -70,7 +70,9 @@ repository without rewriting its source.
   head-position and roll parallax, persisted calibration, 20 Hz transport
   limiting, stale-frame decay, and composable overlay motion included at version
   `0.1.0`.
-- Hand Gesture Triggers: tracking processor seam ready; implementation pending.
+- Hand Gesture Triggers: shared-scheduler MediaPipe recognition, gesture-edge
+  press/release actions, confidence and cooldown controls, validated local
+  mappings, and a bundled official model included at version `0.1.0`.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
 - Rule Graph and Sequencer: validated manual action-graph slice included at
   version `0.1.0`; triggers and visual editing remain pending.
@@ -88,13 +90,11 @@ Implementation order:
 1. Run the final OBS Scene-Aware Profiles live check once the local OBS build
    includes obs-websocket. Mock authentication, lifecycle, reconnect, and
    backpressure coverage is complete.
-2. Add Hand Gesture Triggers without opening a second webcam stream. Verify
-   scheduler backpressure, gesture edges, cooldowns, and action invocation.
-3. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
+2. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
    motion, cleanup, transparency, and overlay reconnect behavior.
-4. Finish Reactive Motion Effects polish and presets. Verify configuration
+3. Finish Reactive Motion Effects polish and presets. Verify configuration
    migration, preview, reduced motion, reconnect, and performance behavior.
-5. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
+4. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
    inspect-only output before extraction and confirm the source remains unchanged.
 
 Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored
