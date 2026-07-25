@@ -72,10 +72,16 @@ function createImportPlan(document, selections, options) {
       });
     }
   }
+  const conversion = conversionReport(document);
+  for (const format of conversion.formats) {
+    if (format.status === 'unsupported') {
+      warnings.push({ code: 'unsupported_texture_format', format: format.sourceFormat });
+    }
+  }
 
   return {
     schemaVersion: 1,
-    conversion: conversionReport(document),
+    conversion,
     mappings,
     assets: assets.sort((left, right) => compareText(left.state, right.state)),
     reviewAssets,
@@ -190,14 +196,20 @@ function conversionReport(document) {
   for (const image of document.images) {
     for (const frame of image.frames) sourceFormats.add(frame.texture.format);
   }
-  return {
-    sourceFormats: [...sourceFormats].sort(compareText),
-    decodedPixelFormat: 'RGBA8',
-    sourceRowOrder: 'bottom_up',
-    decodedRowOrder: 'top_down',
-    colorChannels: 'preserved',
-    alphaChannel: 'preserved'
-  };
+  return { formats: [...sourceFormats].sort(compareText).map(sourceFormat => {
+    if (sourceFormat !== 'RAW.' && sourceFormat !== 'VDD.') {
+      return { sourceFormat, status: 'unsupported' };
+    }
+    return {
+      sourceFormat,
+      status: 'supported',
+      decodedPixelFormat: 'RGBA8',
+      sourceRowOrder: 'bottom_up',
+      decodedRowOrder: 'top_down',
+      colorChannels: 'preserved',
+      alphaChannel: 'preserved'
+    };
+  }) };
 }
 
 function isSafeName(value) {

@@ -44,9 +44,11 @@ test('creates an explicit deterministic core-state plan without hiding losses', 
   assert.deepEqual(plan, {
     schemaVersion: 1,
     conversion: {
-      sourceFormats: ['VDD.'], decodedPixelFormat: 'RGBA8',
-      sourceRowOrder: 'bottom_up', decodedRowOrder: 'top_down',
-      colorChannels: 'preserved', alphaChannel: 'preserved'
+      formats: [{
+        sourceFormat: 'VDD.', status: 'supported', decodedPixelFormat: 'RGBA8',
+        sourceRowOrder: 'bottom_up', decodedRowOrder: 'top_down',
+        colorChannels: 'preserved', alphaChannel: 'preserved'
+      }]
     },
     mappings: [{ stateId: 3, sourceName: 'Neutral', target: 'neutral' }],
     assets: [{
@@ -185,6 +187,24 @@ test('sorts plugin asset names by ordinal code point', () => {
   assert.deepEqual(plan.assets.map(asset => asset.state), [
     'a-b_idle', 'a-b_speaking', 'a_b_idle', 'a_b_speaking'
   ]);
+});
+
+test('reports unsupported texture formats without claiming an RGBA conversion', () => {
+  const document = miniDocument();
+  document.images[0].frames[0].texture.format = 'BC7.';
+
+  const plan = createImportPlan(document, [{ stateId: 3, target: 'neutral' }]);
+
+  assert.deepEqual(plan.conversion.formats, [{
+    sourceFormat: 'BC7.', status: 'unsupported'
+  }, {
+    sourceFormat: 'VDD.', status: 'supported', decodedPixelFormat: 'RGBA8',
+    sourceRowOrder: 'bottom_up', decodedRowOrder: 'top_down',
+    colorChannels: 'preserved', alphaChannel: 'preserved'
+  }]);
+  assert.deepEqual(plan.warnings.find(warning => warning.code === 'unsupported_texture_format'), {
+    code: 'unsupported_texture_format', format: 'BC7.'
+  });
 });
 
 test('suggests normalized core names but never confirms them automatically', () => {
