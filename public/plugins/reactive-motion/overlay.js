@@ -10,7 +10,7 @@
   const requestFrame = options.requestFrame || (callback => requestAnimationFrame(callback));
   const cancelFrame = options.cancelFrame || (handle => cancelAnimationFrame(handle));
   const pluginId = 'reactive-motion';
-  let config = { enabled: false, preset: 'calm', intensity: 0.5 };
+  let config = { enabled: false, preview: false, reduced: false, preset: 'calm', intensity: 0.5 };
   let level = 0;
   let smoothedLevel = 0;
   let frameHandle = null;
@@ -21,7 +21,9 @@
   }
 
   function schedule() {
-    if (config.enabled && frameHandle === null) frameHandle = requestFrame(render);
+    if ((config.enabled || config.preview) && !config.reduced && frameHandle === null) {
+      frameHandle = requestFrame(render);
+    }
   }
 
   function stop() {
@@ -33,7 +35,7 @@
 
   function render(timestamp) {
     frameHandle = null;
-    if (!config.enabled) return;
+    if ((!config.enabled && !config.preview) || config.reduced) return;
 
     smoothedLevel += (level - smoothedLevel) * 0.2;
     const intensity = config.intensity;
@@ -63,11 +65,13 @@
       const next = message.data || {};
       config = {
         enabled: next.enabled === true,
+        preview: next.preview === true,
+        reduced: next.reduced === true,
         preset: ['calm', 'bouncy', 'elastic'].includes(next.preset) ? next.preset : 'calm',
         intensity: clamp(next.intensity, 0, 1, 0.5)
       };
       level = clamp(next.level, 0, 1, 0);
-      if (config.enabled) schedule();
+      if ((config.enabled || config.preview) && !config.reduced) schedule();
       else stop();
     }
 });

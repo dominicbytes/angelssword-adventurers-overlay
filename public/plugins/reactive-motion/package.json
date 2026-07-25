@@ -1,6 +1,6 @@
 {
   "name": "@as-adventurer/reactive-motion-plugin",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Composable idle and audio-reactive motion for AS Adventurer Byte Edition",
   "license": "MIT",
   "scripts": {

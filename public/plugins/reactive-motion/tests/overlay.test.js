@@ -63,3 +63,40 @@ test('disabling the plugin clears its motion contribution', () => {
 
   assert.deepEqual(host.calls.at(-1), ['clear', 'reactive-motion']);
 });
+
+test('reduced motion clears movement and does not schedule a frame loop', () => {
+  const host = createHost();
+  let scheduled = 0;
+  createReactiveMotionOverlay(host, {
+    requestFrame: () => { scheduled += 1; return scheduled; },
+    cancelFrame: () => {}
+  });
+
+  host.emit('plugin-event', {
+    pluginId: 'reactive-motion',
+    event: 'state',
+    data: { enabled: true, preview: true, reduced: true, preset: 'elastic', intensity: 1, level: 1 }
+  });
+
+  assert.equal(scheduled, 0);
+  assert.deepEqual(host.calls.at(-1), ['clear', 'reactive-motion']);
+});
+
+test('does not queue duplicate animation frames for repeated state updates', () => {
+  const host = createHost();
+  let scheduled = 0;
+  createReactiveMotionOverlay(host, {
+    requestFrame: () => { scheduled += 1; return scheduled; },
+    cancelFrame: () => {}
+  });
+  const state = {
+    pluginId: 'reactive-motion',
+    event: 'state',
+    data: { enabled: true, reduced: false, preset: 'calm', intensity: 0.5, level: 0.3 }
+  };
+
+  host.emit('plugin-event', state);
+  host.emit('plugin-event', state);
+
+  assert.equal(scheduled, 1);
+});

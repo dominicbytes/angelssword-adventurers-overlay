@@ -1,7 +1,7 @@
 {
   "id": "reactive-motion",
   "name": "Reactive Motion Effects",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "controlScript": "control.js",
   "overlayScript": "overlay.js",
   "controlStyle": "plugin.css",
