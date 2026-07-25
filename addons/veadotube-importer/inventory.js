@@ -1,6 +1,11 @@
 'use strict';
 
 const MAGIC = Buffer.from('VEADOTUBE', 'ascii');
+const DEFAULT_LIMITS = Object.freeze({
+  maxFileBytes: 256 * 1024 * 1024,
+  maxChunkBytes: 128 * 1024 * 1024,
+  maxChunks: 100000
+});
 
 function parseError(code, offset, message) {
   const error = new Error(message);
@@ -11,12 +16,7 @@ function parseError(code, offset, message) {
 
 function parseChunkInventory(input, options) {
   const bytes = Buffer.isBuffer(input) ? input : Buffer.from(input);
-  const limits = {
-    maxFileBytes: 256 * 1024 * 1024,
-    maxChunkBytes: 128 * 1024 * 1024,
-    maxChunks: 100000,
-    ...(options || {})
-  };
+  const limits = { ...DEFAULT_LIMITS, ...(options || {}) };
   if (bytes.length > limits.maxFileBytes) {
     throw parseError('file_too_large', 0, 'VeadoTube file exceeds the configured size limit');
   }
@@ -30,6 +30,8 @@ function parseChunkInventory(input, options) {
   const chunks = [];
   let offset = MAGIC.length;
   let terminated = false;
+  let terminatorOffset = null;
+  let trailingBytes = 0;
   while (offset < bytes.length) {
     if (bytes.length - offset < 12) {
       throw parseError('truncated_header', offset, 'Truncated VeadoTube chunk header');
@@ -39,6 +41,8 @@ function parseChunkInventory(input, options) {
     const length = bytes.readUInt32LE(offset + 8);
     if (id === 0 || typeValue === 0 || length === 0) {
       terminated = true;
+      terminatorOffset = offset;
+      trailingBytes = bytes.length - (offset + 12);
       break;
     }
     if (chunks.length >= limits.maxChunks) {
@@ -63,12 +67,14 @@ function parseChunkInventory(input, options) {
   }
 
   const types = new Set(chunks.map(chunk => chunk.type));
-  const format = types.has('MLST') ? 'mini' : types.has('DART') ? 'dynamic' : 'modern_unknown';
-  return { format, byteLength: bytes.length, terminated, chunks };
+  const format = types.has('MLST') && types.has('DART')
+    ? 'ambiguous'
+    : types.has('MLST') ? 'mini' : types.has('DART') ? 'dynamic' : 'modern_unknown';
+  return { format, byteLength: bytes.length, terminated, terminatorOffset, trailingBytes, chunks };
 }
 
-function inspectBytes(bytes, fileName) {
-  const inventory = parseChunkInventory(bytes);
+function inspectBytes(bytes, fileName, options) {
+  const inventory = parseChunkInventory(bytes, options);
   const lowerName = String(fileName || '').toLowerCase();
   const warnings = [];
   if (lowerName.endsWith('.vaedo')) warnings.push('extension_alias_vaedo');
@@ -76,4 +82,4 @@ function inspectBytes(bytes, fileName) {
   return { ...inventory, warnings };
 }
 
-module.exports = { inspectBytes, parseChunkInventory };
+module.exports = { DEFAULT_LIMITS, inspectBytes, parseChunkInventory };

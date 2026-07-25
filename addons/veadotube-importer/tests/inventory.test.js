@@ -26,6 +26,8 @@ test('identifies a modern Mini avatar and reports chunks without copying payload
     format: 'mini',
     byteLength: bytes.length,
     terminated: true,
+    terminatorOffset: 38,
+    trailingBytes: 0,
     chunks: [
       { id: 21, type: 'MLST', offset: 9, dataOffset: 21, length: 4 },
       { id: 1, type: 'META', offset: 25, dataOffset: 37, length: 1 }
@@ -40,6 +42,19 @@ test('classifies dynamic and legacy containers explicitly', () => {
   assert.throws(() => parseChunkInventory(Buffer.from('PK\x03\x04legacy')), error => (
     error.code === 'legacy_format' && error.offset === 0
   ));
+  assert.equal(parseChunkInventory(fixture([
+    { id: 1, type: 'MLST', data: Buffer.from([0]) },
+    { id: 2, type: 'DART', data: Buffer.from([0]) }
+  ])).format, 'ambiguous');
+});
+
+test('reports bytes after a documented early terminator', () => {
+  const bytes = Buffer.concat([fixture([]), Buffer.from('extra')]);
+  const report = parseChunkInventory(bytes);
+
+  assert.equal(report.terminated, true);
+  assert.equal(report.terminatorOffset, 9);
+  assert.equal(report.trailingBytes, 5);
 });
 
 test('rejects truncated and resource-exhausting chunk declarations', () => {

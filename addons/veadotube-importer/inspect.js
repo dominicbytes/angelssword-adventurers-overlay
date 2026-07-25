@@ -3,18 +3,21 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { inspectBytes } = require('./inventory');
+const { DEFAULT_LIMITS, inspectBytes } = require('./inventory');
 
-function inspectFile(sourcePath) {
+function inspectFile(sourcePath, options) {
+  const limits = { ...DEFAULT_LIMITS, ...(options || {}) };
   const byteLength = fs.statSync(sourcePath).size;
-  if (byteLength > 256 * 1024 * 1024) {
+  if (byteLength > limits.maxFileBytes) {
     const error = new Error('VeadoTube file exceeds the configured size limit');
     error.code = 'file_too_large';
     error.offset = 0;
     throw error;
   }
   const bytes = fs.readFileSync(sourcePath);
-  const report = inspectBytes(bytes, path.basename(sourcePath));
+  const report = inspectBytes(bytes, path.basename(sourcePath), limits);
+  const counts = new Map();
+  for (const chunk of report.chunks) counts.set(chunk.type, (counts.get(chunk.type) || 0) + 1);
   return {
     importerVersion: '0.1.0',
     source: {
@@ -23,8 +26,7 @@ function inspectFile(sourcePath) {
       sha256: crypto.createHash('sha256').update(bytes).digest('hex')
     },
     ...report,
-    chunkTypes: Object.fromEntries([...new Set(report.chunks.map(chunk => chunk.type))]
-      .sort().map(type => [type, report.chunks.filter(chunk => chunk.type === type).length]))
+    chunkTypes: Object.fromEntries([...counts].sort(([left], [right]) => left.localeCompare(right)))
   };
 }
 
