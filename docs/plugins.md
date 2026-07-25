@@ -18,12 +18,13 @@ public/plugins/example-plugin/
   "version": "1.0.0",
   "controlScript": "control.js",
   "overlayScript": "overlay.js",
-  "controlStyle": "plugin.css",
+  "controlStyle": "control.css",
+  "overlayStyle": "overlay.css",
   "assetStates": ["neutral_example"]
 }
 ```
 
-`controlScript`, `overlayScript`, and `controlStyle` are optional files in the
+`controlScript`, `overlayScript`, `controlStyle`, and `overlayStyle` are optional files in the
 plugin folder. `assetStates` is required and may be empty. Declared states are
 included when the server scans each model folder for animation assets.
 

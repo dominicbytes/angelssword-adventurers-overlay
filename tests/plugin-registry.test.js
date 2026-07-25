@@ -30,6 +30,7 @@ test('discovers a plugin and exposes only its declared browser files and model s
     controlScript: '/plugins/example-plugin/control.js',
     overlayScript: '/plugins/example-plugin/overlay.js',
     controlStyle: '/plugins/example-plugin/plugin.css',
+    overlayStyle: undefined,
     assetStates: ['neutral_example']
   }]);
 });
@@ -70,6 +71,7 @@ test('skips malformed and path-traversing manifests without hiding valid plugins
     controlScript: '/plugins/valid-plugin/control.js',
     overlayScript: undefined,
     controlStyle: undefined,
+    overlayStyle: undefined,
     assetStates: []
   }]);
 });

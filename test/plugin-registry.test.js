@@ -30,6 +30,7 @@ test('discovers an installed plugin and exposes its browser assets and model sta
     controlScript: '/plugins/viseme-lipsync/control.js',
     overlayScript: '/plugins/viseme-lipsync/overlay.js',
     controlStyle: '/plugins/viseme-lipsync/plugin.css',
+    overlayStyle: undefined,
     assetStates: ['neutral_viseme_open', 'neutral_viseme_round']
   }]);
 });
@@ -70,6 +71,7 @@ test('skips malformed and path-traversing plugin manifests without hiding valid 
     controlScript: '/plugins/valid-plugin/control.js',
     overlayScript: undefined,
     controlStyle: undefined,
+    overlayStyle: undefined,
     assetStates: ['neutral_extra']
   }]);
 });
