@@ -1,0 +1,10 @@
+{
+  "id": "props-tossables-particles",
+  "name": "Props, Tossables, and Particles",
+  "version": "0.1.0",
+  "controlScript": "control.js",
+  "overlayScript": "overlay.js",
+  "controlStyle": "control.css",
+  "overlayStyle": "plugin.css",
+  "assetStates": []
+}

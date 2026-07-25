@@ -1,0 +1,8 @@
+{
+  "name": "@as-adventurer/props-tossables-particles-plugin",
+  "version": "0.1.0",
+  "description": "Reconnect-safe overlay effects for AS Adventurer Byte Edition",
+  "license": "MIT",
+  "scripts": { "test": "node --test tests/*.test.js" },
+  "asAdventurer": { "pluginHostVersion": 1, "distribution": "byte-edition" }
+}

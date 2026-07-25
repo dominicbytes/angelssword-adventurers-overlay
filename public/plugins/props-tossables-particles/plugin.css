@@ -1,0 +1,16 @@
+.props-effects-layer {
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  z-index: 20;
+}
+
+.props-effect {
+  height: 18%;
+  position: absolute;
+  transform-origin: center;
+  width: auto;
+}
+
+.props-effect-particle { height: 28%; }

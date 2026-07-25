@@ -1,0 +1,5 @@
+.props-effects-panel .props-effects-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
