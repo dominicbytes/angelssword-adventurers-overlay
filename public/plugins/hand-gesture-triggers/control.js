@@ -7,8 +7,10 @@
       document: root.document,
       storage: root.localStorage,
       async createRecognizer() {
-        const vision = await import('/vendor/mediapipe/vision_bundle.mjs');
-        const files = await vision.FilesetResolver.forVisionTasks('/vendor/mediapipe/wasm');
+        const vision = await import('/plugins/hand-gesture-triggers/vendor/mediapipe/vision_bundle.mjs');
+        const files = await vision.FilesetResolver.forVisionTasks(
+          '/plugins/hand-gesture-triggers/vendor/mediapipe/wasm'
+        );
         return vision.GestureRecognizer.createFromOptions(files, {
           baseOptions: {
             modelAssetPath: '/plugins/hand-gesture-triggers/gesture_recognizer.task',
@@ -129,6 +131,13 @@
     if (action) host.invokeAction(action.actionId, action.parameters);
   }
 
+  function resetGestureState() {
+    if (activeMapping) invoke(activeMapping.release);
+    activeMapping = null;
+    observedGesture = null;
+    lastTriggeredAt.clear();
+  }
+
   function bestGesture(result) {
     let best = null;
     for (const hand of result?.gestures || []) {
@@ -172,8 +181,11 @@
     try {
       unregisterProcessor = host.registerTrackingProcessor(pluginId, {
         everyNFrames: 2,
-        process: (video, timestamp) => recognizer.recognizeForVideo(video, timestamp),
-        onResult: handleResult
+        process: (video, timestamp) => config.enabled
+          ? recognizer.recognizeForVideo(video, timestamp)
+          : null,
+        onResult: handleResult,
+        onStop: resetGestureState
       });
     } catch (error) {
       recognizer.close?.();
@@ -278,10 +290,7 @@
       const candidate = normalize(nextConfig);
       const result = validate(candidate);
       if (!result.ok) return result;
-      if (activeMapping) invoke(activeMapping.release);
-      activeMapping = null;
-      observedGesture = null;
-      lastTriggeredAt.clear();
+      resetGestureState();
       config = candidate;
       storage?.setItem(storageKey, JSON.stringify(config));
       return { ok: true };
@@ -291,9 +300,7 @@
     },
     destroy() {
       destroyed = true;
-      if (activeMapping) invoke(activeMapping.release);
-      activeMapping = null;
-      observedGesture = null;
+      resetGestureState();
       unregisterProcessor?.();
       unregisterProcessor = null;
       recognizer?.close?.();

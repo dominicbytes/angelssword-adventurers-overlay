@@ -15,6 +15,8 @@ The bundled `gesture_recognizer.task` is Google's official MediaPipe model from
 `https://storage.googleapis.com/mediapipe-tasks/gesture_recognizer/gesture_recognizer.task`.
 Its SHA-256 is
 `a966b1d4e774e0423c19c8aa71f070e5a72fe7a03c2663dd2f3cb0b0095ee3e1`.
+The plugin-owned MediaPipe Tasks Vision runtime is documented with its source,
+integrity, and Apache-2.0 license under `vendor/mediapipe/`.
 
 ## Configuration
 

@@ -165,3 +165,70 @@ test('closes the recognizer when shared processor registration is unavailable', 
   assert.equal(closed, true);
   controller.destroy();
 });
+
+test('does no recognition work while disabled', async () => {
+  let processor = null;
+  let recognitions = 0;
+  const controller = createHandGestureTriggers({
+    registerTrackingProcessor(_pluginId, definition) {
+      processor = definition;
+      return () => {};
+    },
+    invokeAction() { return Promise.resolve({ ok: true }); }
+  }, {
+    recognizer: {
+      recognizeForVideo() { recognitions += 1; },
+      close() {}
+    }
+  });
+  await controller.ready;
+
+  processor.process({}, 10);
+  assert.equal(recognitions, 0);
+  controller.update({
+    schemaVersion: 1,
+    enabled: true,
+    confidence: 0.7,
+    cooldownMs: 750,
+    mappings: []
+  });
+  processor.process({}, 20);
+  assert.equal(recognitions, 1);
+  controller.destroy();
+});
+
+test('releases an active gesture when the shared camera stops', async () => {
+  const invocations = [];
+  let processor = null;
+  const controller = createHandGestureTriggers({
+    registerTrackingProcessor(_pluginId, definition) {
+      processor = definition;
+      return () => {};
+    },
+    invokeAction(actionId) {
+      invocations.push(actionId);
+      return Promise.resolve({ ok: true });
+    }
+  }, {
+    recognizer: { recognizeForVideo() {}, close() {} },
+    initialConfig: {
+      schemaVersion: 1,
+      enabled: true,
+      confidence: 0.7,
+      cooldownMs: 750,
+      mappings: [{
+        gesture: 'Closed_Fist',
+        press: { actionId: 'prop.hold', parameters: {} },
+        release: { actionId: 'prop.release', parameters: {} }
+      }]
+    }
+  });
+  await controller.ready;
+  processor.onResult(gesture('Closed_Fist'), 100);
+
+  processor.onStop();
+  processor.onStop();
+
+  assert.deepEqual(invocations, ['prop.hold', 'prop.release']);
+  controller.destroy();
+});
