@@ -78,6 +78,29 @@ test('falls back from invalid persisted settings', () => {
   control.destroy();
 });
 
+test('does not overwrite settings from an unsupported future schema', () => {
+  const host = createHost();
+  let writes = 0;
+  const control = createReactiveMotionControl(host, {
+    storage: {
+      getItem: () => JSON.stringify({
+        schemaVersion: 3,
+        enabled: true,
+        preset: 'calm',
+        intensity: 0.5,
+        reducedMotion: 'system',
+        futureOption: true
+      }),
+      setItem() { writes += 1; }
+    },
+    prefersReducedMotion: () => false
+  });
+
+  assert.equal(writes, 0);
+  assert.equal(control.getConfig().enabled, false);
+  control.destroy();
+});
+
 test('previews a saved preset temporarily without enabling it', () => {
   const host = createHost();
   let finishPreview;
@@ -136,4 +159,34 @@ test('limits microphone state publication to twenty updates per second', () => {
 
   assert.deepEqual(host.messages.map(message => message.data.level), [0.2, 0.4]);
   control.destroy();
+});
+
+test('publishes system reduced-motion changes immediately while idle', () => {
+  const host = createHost();
+  let reduced = false;
+  let changed;
+  let unsubscribed = false;
+  const control = createReactiveMotionControl(host, {
+    storage: {
+      getItem: () => JSON.stringify({
+        schemaVersion: 2,
+        enabled: true,
+        preset: 'calm',
+        intensity: 0.5,
+        reducedMotion: 'system'
+      }),
+      setItem() {}
+    },
+    prefersReducedMotion: () => reduced,
+    subscribeReducedMotion(handler) {
+      changed = handler;
+      return () => { unsubscribed = true; };
+    }
+  });
+
+  reduced = true;
+  changed();
+  assert.equal(host.messages.at(-1).data.reduced, true);
+  control.destroy();
+  assert.equal(unsubscribed, true);
 });

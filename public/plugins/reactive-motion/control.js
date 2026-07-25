@@ -3,10 +3,15 @@
     module.exports = { createReactiveMotionControl: factory };
   }
   if (root?.ASAPluginHost) {
+    const reducedMotionQuery = root.matchMedia?.('(prefers-reduced-motion: reduce)');
     root.ASReactiveMotion = factory(root.ASAPluginHost, {
       document: root.document,
       storage: root.localStorage,
-      prefersReducedMotion: () => root.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+      prefersReducedMotion: () => reducedMotionQuery?.matches === true,
+      subscribeReducedMotion(handler) {
+        reducedMotionQuery?.addEventListener?.('change', handler);
+        return () => reducedMotionQuery?.removeEventListener?.('change', handler);
+      }
     });
   }
 })(typeof window !== 'undefined' ? window : null, function createReactiveMotionControl(host, options) {
@@ -43,6 +48,7 @@
 
   function migrate(value) {
     if (!value || value.schemaVersion === 2) return value;
+    if (value.schemaVersion !== undefined && value.schemaVersion !== 1) return null;
     return {
       schemaVersion: 2,
       enabled: value.enabled === true,
@@ -61,7 +67,7 @@
     }
     const migrated = migrate(stored);
     const loaded = valid(migrated) ? migrated : defaults;
-    if (stored && stored.schemaVersion !== 2 && valid(migrated)) {
+    if (stored && (stored.schemaVersion === undefined || stored.schemaVersion === 1) && valid(migrated)) {
       storage?.setItem(storageKey, JSON.stringify(migrated));
     }
     return copy(loaded);
@@ -118,6 +124,9 @@
     lastLevelSentAt = audio.timestamp;
     sendState(false);
   });
+  const unsubscribeReducedMotion = options.subscribeReducedMotion?.(() => {
+    if (config.reducedMotion === 'system') sendState(false);
+  }) || (() => {});
 
   const mount = options.document?.getElementById('plugin-panels');
   if (mount) {
@@ -182,6 +191,7 @@
       previewTimer = null;
       unsubscribeTransport();
       unsubscribeAudio();
+      unsubscribeReducedMotion();
       panel?.remove();
       panel = null;
     }

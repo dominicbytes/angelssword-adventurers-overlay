@@ -20,8 +20,12 @@
     return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
   }
 
+  function shouldAnimate() {
+    return (config.enabled || config.preview) && !config.reduced;
+  }
+
   function schedule() {
-    if ((config.enabled || config.preview) && !config.reduced && frameHandle === null) {
+    if (shouldAnimate() && frameHandle === null) {
       frameHandle = requestFrame(render);
     }
   }
@@ -35,7 +39,7 @@
 
   function render(timestamp) {
     frameHandle = null;
-    if ((!config.enabled && !config.preview) || config.reduced) return;
+    if (!shouldAnimate()) return;
 
     smoothedLevel += (level - smoothedLevel) * 0.2;
     const intensity = config.intensity;
@@ -71,7 +75,7 @@
         intensity: clamp(next.intensity, 0, 1, 0.5)
       };
       level = clamp(next.level, 0, 1, 0);
-      if ((config.enabled || config.preview) && !config.reduced) schedule();
+      if (shouldAnimate()) schedule();
       else stop();
     }
 });
