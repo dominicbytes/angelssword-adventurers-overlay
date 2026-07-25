@@ -81,9 +81,10 @@ repository without rewriting its source.
 - Rule Graph and Sequencer: validated manual action-graph slice included at
   version `0.1.0`; triggers and visual editing remain pending.
 - VeadoTube Mini Importer: bounded inventory, Mini metadata decoding, streamed
-  `RAW.`/`VDD.` RGBA decoding, and explicit dry-run state mapping included at
-  version `0.3.0`; image encoding, preview, extraction, and the staged writer
-  remain pending.
+  `RAW.`/`VDD.` RGBA decoding, explicit dry-run state mapping, static canvas
+  composition, deterministic PNG encoding, and validated in-memory previews
+  included at version `0.4.0`; animated output, the confirmation UI, and staged
+  writer remain pending.
 
 ## Next implementation pass
 
@@ -97,9 +98,10 @@ Implementation order:
 1. Run the final OBS Scene-Aware Profiles live check once the local OBS build
    includes obs-websocket. Mock authentication, lifecycle, reconnect, and
    backpressure coverage is complete.
-2. Continue the VeadoTube Mini Importer with static image composition/encoding
-   and preview validation. Texture decoding and dry-run mapping are verified
-   against the private fixture; extraction remains disabled.
+2. Continue the VeadoTube Mini Importer with the local mapping-confirmation UI
+   and collision-safe stage/validate/commit workflow for static PNG assets.
+   Preview output is verified against the private fixture; model extraction
+   remains disabled.
 
 Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored
 `.private-fixtures/` directory inside the Byte Edition repository unless their

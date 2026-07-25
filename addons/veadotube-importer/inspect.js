@@ -14,7 +14,7 @@ function inspectFile(sourcePath, options) {
   const counts = new Map();
   for (const chunk of report.chunks) counts.set(chunk.type, (counts.get(chunk.type) || 0) + 1);
   return {
-    importerVersion: '0.3.0',
+    importerVersion: '0.4.0',
     source: {
       name: path.basename(sourcePath),
       byteLength: bytes.length,
