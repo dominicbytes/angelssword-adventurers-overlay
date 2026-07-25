@@ -64,7 +64,10 @@ repository without rewriting its source.
   are complete. The local OBS 32.2.0 checkout contains obs-websocket 5.7.4
   source, but its current lite build does not contain the plugin DLL, so the
   live compatibility run remains pending a WebSocket-enabled OBS build.
-- Gaze and Head Parallax: tracking seam ready; plugin implementation pending.
+- Gaze and Head Parallax: shared-frame landmark measurement, iris-aware gaze,
+  head-position and roll parallax, persisted calibration, 20 Hz transport
+  limiting, stale-frame decay, and composable overlay motion included at version
+  `0.1.0`.
 - Hand Gesture Triggers: tracking processor seam ready; implementation pending.
 - Props, Tossables, and Particles: motion/overlay seam partially ready.
 - Rule Graph and Sequencer: validated manual action-graph slice included at
@@ -83,15 +86,13 @@ Implementation order:
 1. Run the final OBS Scene-Aware Profiles live check once the local OBS build
    includes obs-websocket. Mock authentication, lifecycle, reconnect, and
    backpressure coverage is complete.
-2. Add Gaze and Head Parallax through the shared webcam pipeline. Verify that it
-   composes bounded motion without opening another camera stream.
-3. Add Hand Gesture Triggers without opening a second webcam stream. Verify
+2. Add Hand Gesture Triggers without opening a second webcam stream. Verify
    scheduler backpressure, gesture edges, cooldowns, and action invocation.
-4. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
+3. Add Props, Tossables, and Particles using placeholder artwork. Verify spawn,
    motion, cleanup, transparency, and overlay reconnect behavior.
-5. Finish Reactive Motion Effects polish and presets. Verify configuration
+4. Finish Reactive Motion Effects polish and presets. Verify configuration
    migration, preview, reduced motion, reconnect, and performance behavior.
-6. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
+5. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
    inspect-only output before extraction and confirm the source remains unchanged.
 
 Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored
