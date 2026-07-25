@@ -179,3 +179,60 @@ test('replays neutral configuration when the control transport reconnects', () =
   assert.equal(host.messages[1].data.enabled, false);
   controller.destroy();
 });
+
+test('cannot calibrate or reanimate from stale data after face loss', () => {
+  const host = createHost();
+  const controller = createGazeHeadParallaxControl(host, {
+    initialConfig: {
+      schemaVersion: 1,
+      enabled: true,
+      headStrength: 0.75,
+      gazeStrength: 0.25,
+      maxX: 24,
+      maxY: 16,
+      maxRotate: 5,
+      smoothing: 0.2,
+      invertX: false,
+      invertY: false,
+      calibration: null
+    }
+  });
+
+  host.emit('tracking-frame', faceFrame({ timestamp: 100 }));
+  controller.calibrate();
+  host.emit('tracking-frame', faceFrame({ timestamp: 150, offsetX: 0.04 }));
+  assert.ok(host.messages.at(-1).data.target.x > 0);
+  host.emit('tracking-frame', { timestamp: 151, faceDetected: false, landmarks: null });
+
+  assert.deepEqual(controller.calibrate(), { ok: false, error: 'face_unavailable' });
+  const nextConfig = controller.getConfig();
+  nextConfig.headStrength = 0.5;
+  assert.deepEqual(controller.update(nextConfig), { ok: true });
+  assert.deepEqual(host.messages.at(-1).data.target, { x: 0, y: 0, rotate: 0 });
+  controller.destroy();
+});
+
+test('treats an unmeasurable landmark frame as immediate tracking loss', () => {
+  const host = createHost();
+  const controller = createGazeHeadParallaxControl(host, {
+    initialConfig: {
+      schemaVersion: 1,
+      enabled: true,
+      headStrength: 0.75,
+      gazeStrength: 0.25,
+      maxX: 24,
+      maxY: 16,
+      maxRotate: 5,
+      smoothing: 0.2,
+      invertX: false,
+      invertY: false,
+      calibration: null
+    }
+  });
+
+  host.emit('tracking-frame', faceFrame({ timestamp: 100 }));
+  host.emit('tracking-frame', { timestamp: 150, faceDetected: true, landmarks: [] });
+  assert.deepEqual(host.messages.at(-1).data.target, { x: 0, y: 0, rotate: 0 });
+  assert.deepEqual(controller.calibrate(), { ok: false, error: 'face_unavailable' });
+  controller.destroy();
+});

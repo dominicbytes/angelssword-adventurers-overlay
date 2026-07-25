@@ -15,6 +15,23 @@
   const pluginId = 'gaze-head-parallax';
   const storageKey = 'as-plugin-gaze-head-parallax';
   const storage = options.storage || null;
+  const landmark = Object.freeze({
+    forehead: 10,
+    chin: 152,
+    leftCheek: 234,
+    rightCheek: 454,
+    nose: 1,
+    leftEyeOuter: 33,
+    leftEyeInner: 133,
+    rightEyeInner: 362,
+    rightEyeOuter: 263,
+    leftIris: 468,
+    rightIris: 473,
+    leftEyeTop: 159,
+    leftEyeBottom: 145,
+    rightEyeTop: 386,
+    rightEyeBottom: 374
+  });
   const defaults = {
     schemaVersion: 1,
     enabled: false,
@@ -111,15 +128,15 @@
   }
 
   function measure(landmarks) {
-    const forehead = point(landmarks, 10);
-    const chin = point(landmarks, 152);
-    const leftCheek = point(landmarks, 234);
-    const rightCheek = point(landmarks, 454);
-    const nose = point(landmarks, 1);
-    const leftEyeOuter = point(landmarks, 33);
-    const leftEyeInner = point(landmarks, 133);
-    const rightEyeInner = point(landmarks, 362);
-    const rightEyeOuter = point(landmarks, 263);
+    const forehead = point(landmarks, landmark.forehead);
+    const chin = point(landmarks, landmark.chin);
+    const leftCheek = point(landmarks, landmark.leftCheek);
+    const rightCheek = point(landmarks, landmark.rightCheek);
+    const nose = point(landmarks, landmark.nose);
+    const leftEyeOuter = point(landmarks, landmark.leftEyeOuter);
+    const leftEyeInner = point(landmarks, landmark.leftEyeInner);
+    const rightEyeInner = point(landmarks, landmark.rightEyeInner);
+    const rightEyeOuter = point(landmarks, landmark.rightEyeOuter);
     if (!forehead || !chin || !leftCheek || !rightCheek || !nose ||
         !leftEyeOuter || !rightEyeOuter) return null;
 
@@ -127,12 +144,12 @@
     const faceHeight = Math.abs(chin.y - forehead.y);
     if (faceWidth < 1e-6 || faceHeight < 1e-6) return null;
 
-    const leftIris = point(landmarks, 468);
-    const rightIris = point(landmarks, 473);
-    const leftEyeTop = point(landmarks, 159);
-    const leftEyeBottom = point(landmarks, 145);
-    const rightEyeTop = point(landmarks, 386);
-    const rightEyeBottom = point(landmarks, 374);
+    const leftIris = point(landmarks, landmark.leftIris);
+    const rightIris = point(landmarks, landmark.rightIris);
+    const leftEyeTop = point(landmarks, landmark.leftEyeTop);
+    const leftEyeBottom = point(landmarks, landmark.leftEyeBottom);
+    const rightEyeTop = point(landmarks, landmark.rightEyeTop);
+    const rightEyeBottom = point(landmarks, landmark.rightEyeBottom);
     let gazeX = 0;
     let gazeY = 0;
     let hasGaze = false;
@@ -206,15 +223,23 @@
     };
   }
 
+  function loseTracking() {
+    if (faceTracked) publish({ x: 0, y: 0, rotate: 0 });
+    faceTracked = false;
+    latestMeasurement = null;
+  }
+
   const unsubscribeTracking = host.on('tracking-frame', frame => {
     if (!config.enabled) return;
     if (!frame?.faceDetected || !frame.landmarks) {
-      if (faceTracked) publish({ x: 0, y: 0, rotate: 0 });
-      faceTracked = false;
+      loseTracking();
       return;
     }
     const measurement = measure(frame.landmarks);
-    if (!measurement) return;
+    if (!measurement) {
+      loseTracking();
+      return;
+    }
     latestMeasurement = measurement;
     if (!config.calibration && !automaticCalibration) {
       automaticCalibration = calibrationValue(measurement);
@@ -233,7 +258,7 @@
 
   const controller = {
     calibrate() {
-      if (!latestMeasurement) return { ok: false, error: 'face_unavailable' };
+      if (!faceTracked || !latestMeasurement) return { ok: false, error: 'face_unavailable' };
       config.calibration = calibrationValue(latestMeasurement);
       automaticCalibration = null;
       persist();
@@ -247,11 +272,10 @@
       config = candidate;
       automaticCalibration = null;
       faceTracked = false;
+      latestMeasurement = null;
       lastTrackingSentAt = -Infinity;
       persist();
-      publish(latestMeasurement && config.enabled
-        ? targetFor(latestMeasurement)
-        : { x: 0, y: 0, rotate: 0 });
+      publish({ x: 0, y: 0, rotate: 0 });
       return { ok: true };
     },
     getConfig() {
