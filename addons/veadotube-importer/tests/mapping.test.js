@@ -205,6 +205,16 @@ test('reports unsupported texture formats without claiming an RGBA conversion', 
   assert.deepEqual(plan.warnings.find(warning => warning.code === 'unsupported_texture_format'), {
     code: 'unsupported_texture_format', format: 'BC7.'
   });
+  assert.deepEqual(plan.assets.find(asset => asset.state === 'neutral_idle'), {
+    state: 'neutral_idle', fileName: null, sourceImageId: 14,
+    kind: 'unsupported_texture', width: 64, height: 32, frameCount: 1,
+    duration: 0.1, loopCount: 0, timingChange: 'unresolved',
+    unsupportedFormats: ['BC7.']
+  });
+  assert.deepEqual(plan.warnings.find(warning => warning.code === 'unsupported_texture_asset'), {
+    code: 'unsupported_texture_asset', state: 'neutral_idle', imageId: 14,
+    formats: ['BC7.']
+  });
 });
 
 test('suggests normalized core names but never confirms them automatically', () => {

@@ -4,6 +4,10 @@ const { readerError } = require('./reader');
 
 const CONSTANT_CHANNEL = 0xffffff00;
 
+function isSupportedTextureFormat(format) {
+  return format === 'RAW.' || format === 'VDD.';
+}
+
 function* decodeDocumentTextures(bytes, document, options) {
   const source = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
   const maxTotalDecodedPixels = options?.maxTotalDecodedPixels ?? 256 * 1024 * 1024;
@@ -50,9 +54,12 @@ function decodeTexturePayload(texture, options) {
   if (!Number.isSafeInteger(pixels) || pixels > limits.maxDecodedPixels) {
     throw readerError('pixel_budget_exceeded', dataOffset, 'Decoded texture pixels exceed configured limit');
   }
-  if (format === 'RAW.') return flipRows(decodeRaw(data, pixels, dataOffset), width, height);
-  if (format === 'VDD.') return flipRows(decodeVdd(data, pixels, dataOffset), width, height);
-  throw readerError('unsupported_texture_format', dataOffset, `Unsupported texture format ${format}`);
+  if (!isSupportedTextureFormat(format)) {
+    throw readerError('unsupported_texture_format', dataOffset, `Unsupported texture format ${format}`);
+  }
+  return format === 'RAW.'
+    ? flipRows(decodeRaw(data, pixels, dataOffset), width, height)
+    : flipRows(decodeVdd(data, pixels, dataOffset), width, height);
 }
 
 function decodeRaw(data, pixels, dataOffset) {
@@ -189,4 +196,4 @@ function flipRows(bottomUp, width, height) {
   return topDown;
 }
 
-module.exports = { decodeDocumentTextures, decodeTexturePayload };
+module.exports = { decodeDocumentTextures, decodeTexturePayload, isSupportedTextureFormat };

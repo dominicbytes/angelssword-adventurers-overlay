@@ -1,5 +1,7 @@
 'use strict';
 
+const { isSupportedTextureFormat } = require('./textures');
+
 const CORE_TARGETS = new Set(['neutral', 'happy', 'sad', 'surprised']);
 const IMAGE_ROLES = ['idle', 'speaking', 'blinking_idle', 'blinking_speaking'];
 const EFFECT_LISTS = [
@@ -63,12 +65,22 @@ function createImportPlan(document, selections, options) {
       warnings.push({
         code: 'animated_output_unresolved', state: asset.state, imageId: asset.sourceImageId
       });
+    } else if (asset.kind === 'unsupported_texture') {
+      warnings.push({
+        code: 'unsupported_texture_asset', state: asset.state,
+        imageId: asset.sourceImageId, formats: asset.unsupportedFormats
+      });
     }
   }
   for (const asset of reviewAssets) {
     if (asset.kind === 'animated_unresolved') {
       warnings.push({
         code: 'animated_output_unresolved', role: asset.role, imageId: asset.sourceImageId
+      });
+    } else if (asset.kind === 'unsupported_texture') {
+      warnings.push({
+        code: 'unsupported_texture_asset', role: asset.role,
+        imageId: asset.sourceImageId, formats: asset.unsupportedFormats
       });
     }
   }
@@ -179,15 +191,22 @@ function reviewAsset(stateId, imageId, role, reason, imagesById) {
 }
 
 function imageSummary(image) {
+  const unsupportedFormats = [...new Set(image.frames.map(frame => frame.texture.format))]
+    .filter(format => !isSupportedTextureFormat(format))
+    .sort(compareText);
   const isStatic = image.frames.length === 1;
+  const kind = unsupportedFormats.length > 0
+    ? 'unsupported_texture'
+    : isStatic ? 'static_png' : 'animated_unresolved';
   return {
-    kind: isStatic ? 'static_png' : 'animated_unresolved',
+    kind,
     width: image.width,
     height: image.height,
     frameCount: image.frames.length,
     duration: image.frames.reduce((total, frame) => total + frame.duration, 0),
     loopCount: image.loopCount,
-    timingChange: isStatic ? 'none' : 'unresolved'
+    timingChange: kind === 'static_png' ? 'none' : 'unresolved',
+    ...(unsupportedFormats.length > 0 ? { unsupportedFormats } : {})
   };
 }
 
@@ -197,7 +216,7 @@ function conversionReport(document) {
     for (const frame of image.frames) sourceFormats.add(frame.texture.format);
   }
   return { formats: [...sourceFormats].sort(compareText).map(sourceFormat => {
-    if (sourceFormat !== 'RAW.' && sourceFormat !== 'VDD.') {
+    if (!isSupportedTextureFormat(sourceFormat)) {
       return { sourceFormat, status: 'unsupported' };
     }
     return {
