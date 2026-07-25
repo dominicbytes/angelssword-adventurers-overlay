@@ -50,6 +50,19 @@
     return true;
   }
 
+  function releasePreset(presetName) {
+    const removed = items.filter(item => item.preset === presetName && item.durationMs === 0)
+      .map(item => item.id);
+    for (const id of removed) remove(id);
+    if (removed.length) publish();
+    return removed.length;
+  }
+
+  function clearEffects(shouldPublish) {
+    for (const item of [...items]) remove(item.id);
+    if (shouldPublish) publish();
+  }
+
   function spawn(presetName, held) {
     const preset = presets[presetName];
     if (!preset) return { ok: false, error: 'unknown_preset' };
@@ -88,15 +101,10 @@
     spawn(parameters.preset, true)
   ));
   registerAction('effects.release', 'Release overlay prop', ['held-star'], parameters => {
-    const removed = items.filter(item => item.preset === parameters.preset && item.durationMs === 0)
-      .map(item => item.id);
-    for (const id of removed) remove(id);
-    if (removed.length) publish();
-    return { ok: true, removed: removed.length };
+    return { ok: true, removed: releasePreset(parameters.preset) };
   });
   registerAction('effects.clear', 'Clear overlay effects', null, () => {
-    for (const item of [...items]) remove(item.id);
-    publish();
+    clearEffects(true);
     return { ok: true };
   });
 
@@ -127,21 +135,19 @@
       });
     }
     panel.querySelector('[data-action="clear"]').addEventListener('click', () => {
-      for (const item of [...items]) remove(item.id);
-      publish();
+      clearEffects(true);
     });
     panel.querySelector('[data-action="release"]').addEventListener('click', () => {
-      const held = items.filter(item => item.preset === 'held-star').map(item => item.id);
-      for (const id of held) remove(id);
-      if (held.length) publish();
+      releasePreset('held-star');
     });
   }
 
   return Object.freeze({
     destroy() {
+      const shouldPublishClear = items.length > 0 && host.isTransportOpen();
+      clearEffects(shouldPublishClear);
       unsubscribeTransport();
       for (const unregister of unregisterActions) unregister();
-      for (const item of [...items]) remove(item.id);
       panel?.remove();
       panel = null;
     }

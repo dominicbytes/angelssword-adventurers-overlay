@@ -90,3 +90,37 @@ test('rejects unknown presets and caps active effects', async () => {
   });
   control.destroy();
 });
+
+test('publishes timer cleanup and clears held effects on destroy', async () => {
+  const actions = new Map();
+  const messages = [];
+  const timers = [];
+  const host = {
+    registerAction(id, definition) {
+      actions.set(id, definition);
+      return () => actions.delete(id);
+    },
+    sendPluginEvent(_pluginId, _event, data) {
+      messages.push(data);
+      return true;
+    },
+    on() { return () => {}; },
+    isTransportOpen: () => true
+  };
+  const control = createPropsEffectsControl(host, {
+    now: () => 1000,
+    setTimer(callback) {
+      timers.push(callback);
+      return timers.length;
+    },
+    clearTimer() {}
+  });
+
+  await actions.get('effects.spawn').invoke({ preset: 'confetti' });
+  timers[0]();
+  assert.deepEqual(messages.at(-1).items, []);
+
+  await actions.get('effects.hold').invoke({ preset: 'held-star' });
+  control.destroy();
+  assert.deepEqual(messages.at(-1).items, []);
+});

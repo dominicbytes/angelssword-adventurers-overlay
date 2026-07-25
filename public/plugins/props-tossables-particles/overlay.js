@@ -29,7 +29,12 @@
   function render() {
     frameHandle = null;
     const timestamp = now();
-    for (const entry of rendered.values()) {
+    for (const [id, entry] of rendered) {
+      if (isExpired(entry.item, timestamp)) {
+        entry.element.remove();
+        rendered.delete(id);
+        continue;
+      }
       const frame = effectFrame(entry.item, timestamp);
       entry.element.style.left = `${frame.x}%`;
       entry.element.style.top = `${frame.y}%`;
@@ -41,8 +46,10 @@
 
   function reconcile(items) {
     const incoming = new Set();
+    const timestamp = now();
     for (const item of Array.isArray(items) ? items : []) {
-      if (!assets[item?.preset] || typeof item.id !== 'string' || !Number.isFinite(item.startedAt)) continue;
+      if (!assets[item?.preset] || typeof item.id !== 'string' || !Number.isFinite(item.startedAt) ||
+          isExpired(item, timestamp)) continue;
       incoming.add(item.id);
       let entry = rendered.get(item.id);
       if (!entry) {
@@ -84,6 +91,10 @@
     }
   });
 });
+
+function isExpired(item, timestamp) {
+  return Number(item.durationMs) > 0 && timestamp >= item.startedAt + item.durationMs;
+}
 
 function effectFrame(item, timestamp) {
   const duration = Math.max(1, Number(item.durationMs) || 1);
