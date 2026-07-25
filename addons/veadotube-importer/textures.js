@@ -4,6 +4,37 @@ const { readerError } = require('./reader');
 
 const CONSTANT_CHANNEL = 0xffffff00;
 
+function* decodeDocumentTextures(bytes, document, options) {
+  const source = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  const maxTotalDecodedPixels = options?.maxTotalDecodedPixels ?? 256 * 1024 * 1024;
+  const decodedIds = new Set();
+  let totalPixels = 0;
+  for (const image of document.images) {
+    for (const frame of image.frames) {
+      if (decodedIds.has(frame.textureId)) continue;
+      const texture = frame.texture;
+      const end = texture.dataOffset + texture.dataLength;
+      if (!Number.isSafeInteger(texture.dataOffset) || !Number.isSafeInteger(end) ||
+          texture.dataOffset < 0 || end > source.length) {
+        throw readerError('truncated_data', texture.dataOffset, 'Texture payload exceeds source bounds');
+      }
+      totalPixels += texture.width * texture.height;
+      if (!Number.isSafeInteger(totalPixels) || totalPixels > maxTotalDecodedPixels) {
+        throw readerError(
+          'pixel_budget_exceeded', texture.dataOffset,
+          'Decoded document texture pixels exceed configured limit'
+        );
+      }
+      const rgba = decodeTexturePayload({
+        ...texture,
+        data: source.subarray(texture.dataOffset, end)
+      }, options);
+      decodedIds.add(frame.textureId);
+      yield { textureId: frame.textureId, width: texture.width, height: texture.height, rgba };
+    }
+  }
+}
+
 function decodeTexturePayload(texture, options) {
   const limits = {
     maxDecodedPixels: 64 * 1024 * 1024,
@@ -156,4 +187,4 @@ function flipRows(bottomUp, width, height) {
   return topDown;
 }
 
-module.exports = { decodeTexturePayload };
+module.exports = { decodeDocumentTextures, decodeTexturePayload };

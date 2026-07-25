@@ -115,7 +115,9 @@ test('reports aligned compatibility values without guessing their meaning', () =
 
 test('reports bounded image frames and texture formats', () => {
   const bytes = miniFixture();
-  const report = decodeMiniAvatar(bytes, parseChunkInventory(bytes));
+  const inventory = parseChunkInventory(bytes);
+  const report = decodeMiniAvatar(bytes, inventory);
+  const textureChunk = inventory.chunks.find(chunk => chunk.id === 1010);
 
   assert.deepEqual(report.images[0], {
     id: 10,
@@ -127,7 +129,10 @@ test('reports bounded image frames and texture formats', () => {
       offsetX: 0,
       offsetY: 0,
       duration: 0.1,
-      texture: { width: 2, height: 2, format: 'RAW.', dataLength: 16 }
+      texture: {
+        width: 2, height: 2, format: 'RAW.',
+        dataOffset: textureChunk.dataOffset + 12, dataLength: 16
+      }
     }]
   });
   assert.equal(report.images.length, 8);

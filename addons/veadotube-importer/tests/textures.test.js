@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { decodeTexturePayload } = require('../textures');
+const { decodeDocumentTextures, decodeTexturePayload } = require('../textures');
 
 function packVddBits(bitString, uintCount) {
   const output = Buffer.alloc(uintCount * 4);
@@ -68,4 +68,19 @@ test('rejects malformed and excessive texture payloads with source offsets', () 
   assert.throws(() => decodeTexturePayload({
     format: 'RAW.', width: 2, height: 2, data: Buffer.alloc(16), dataOffset: 0
   }, { maxDecodedPixels: 3 }), error => error.code === 'pixel_budget_exceeded');
+});
+
+test('streams each unique referenced document texture once', () => {
+  const bytes = Buffer.concat([Buffer.alloc(5), Buffer.from([1, 2, 3, 4])]);
+  const texture = { width: 1, height: 1, format: 'RAW.', dataOffset: 5, dataLength: 4 };
+  const document = {
+    images: [{ frames: [{ textureId: 9, texture }, { textureId: 9, texture }] }]
+  };
+
+  const decoded = [...decodeDocumentTextures(bytes, document)];
+
+  assert.equal(decoded.length, 1);
+  assert.deepEqual(decoded[0], {
+    textureId: 9, width: 1, height: 1, rgba: Buffer.from([1, 2, 3, 4])
+  });
 });

@@ -241,6 +241,7 @@ function decodeImages(bytes, imageIds, chunksById, limits) {
     const height = reader.u32();
     validateDimensions(width, height, limits, chunk.dataOffset);
     const format = reader.fourCC();
+    const dataOffset = reader.offset;
     const dataLength = reader.remaining;
     const pixels = width * height;
     if (format === 'RAW.' && dataLength !== pixels * 4) {
@@ -253,7 +254,7 @@ function decodeImages(bytes, imageIds, chunksById, limits) {
     if (decodedPixelBudget > limits.maxDecodedPixels) {
       throw readerError('pixel_budget_exceeded', chunk.dataOffset, 'Decoded texture pixels exceed configured limit');
     }
-    const summary = { width, height, format, dataLength };
+    const summary = { width, height, format, dataOffset, dataLength };
     textures.set(referenceId, summary);
     return summary;
   }
