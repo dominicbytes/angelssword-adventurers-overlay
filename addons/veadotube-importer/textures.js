@@ -92,7 +92,9 @@ function decodeVdd(data, pixels, dataOffset) {
 
   const alpha = decodeChannel(channels[0], pixels, 255);
   const visiblePixels = alpha.reduce((count, value) => count + (value === 0 ? 0 : 1), 0);
-  const colors = channels.slice(1).map(channel => decodeChannel(channel, visiblePixels, 0));
+  const colors = channels.slice(1).map(channel => (
+    channel.constant === undefined ? decodeChannel(channel, visiblePixels, 0) : null
+  ));
   const rgba = Buffer.alloc(pixels * 4);
   let visibleIndex = 0;
   for (let pixel = 0; pixel < pixels; pixel += 1) {
