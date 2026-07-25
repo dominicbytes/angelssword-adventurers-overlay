@@ -57,6 +57,13 @@ test('reports bytes after a documented early terminator', () => {
   assert.equal(report.trailingBytes, 5);
 });
 
+test('rejects high-bit FourCC bytes instead of aliasing trusted types', () => {
+  const bytes = fixture([{ id: 1, type: 'MLST', data: Buffer.from([0]) }]);
+  bytes.set([0xcd, 0xcc, 0xd3, 0xd4], 13);
+
+  assert.throws(() => parseChunkInventory(bytes), error => error.code === 'invalid_fourcc');
+});
+
 test('rejects truncated and resource-exhausting chunk declarations', () => {
   const truncated = fixture([{ id: 1, type: 'MLST', data: Buffer.from([1]) }]).subarray(0, 21);
   assert.throws(() => parseChunkInventory(truncated), error => error.code === 'truncated_chunk');

@@ -7,15 +7,9 @@ const { DEFAULT_LIMITS, inspectBytes } = require('./inventory');
 const { decodeMiniAvatar } = require('./mini');
 
 function inspectFile(sourcePath, options) {
-  const limits = { ...DEFAULT_LIMITS, ...(options || {}) };
-  const byteLength = fs.statSync(sourcePath).size;
-  if (byteLength > limits.maxFileBytes) {
-    const error = new Error('VeadoTube file exceeds the configured size limit');
-    error.code = 'file_too_large';
-    error.offset = 0;
-    throw error;
-  }
-  const bytes = fs.readFileSync(sourcePath);
+  const { fileSystem = fs, ...limitOverrides } = options || {};
+  const limits = { ...DEFAULT_LIMITS, ...limitOverrides };
+  const bytes = readBoundedFile(fileSystem, sourcePath, limits.maxFileBytes);
   const report = inspectBytes(bytes, path.basename(sourcePath), limits);
   const counts = new Map();
   for (const chunk of report.chunks) counts.set(chunk.type, (counts.get(chunk.type) || 0) + 1);
@@ -30,6 +24,41 @@ function inspectFile(sourcePath, options) {
     chunkTypes: Object.fromEntries([...counts].sort(([left], [right]) => left.localeCompare(right))),
     mini: report.format === 'mini' ? decodeMiniAvatar(bytes, report, limits) : null
   };
+}
+
+function readBoundedFile(fileSystem, sourcePath, maxFileBytes) {
+  const descriptor = fileSystem.openSync(sourcePath, 'r');
+  try {
+    const byteLength = fileSystem.fstatSync(descriptor).size;
+    if (!Number.isSafeInteger(byteLength) || byteLength < 0 || byteLength > maxFileBytes) {
+      const error = new Error('VeadoTube file exceeds the configured size limit');
+      error.code = 'file_too_large';
+      error.offset = 0;
+      throw error;
+    }
+    const buffer = Buffer.alloc(byteLength + 1);
+    let bytesRead = 0;
+    while (bytesRead < buffer.length) {
+      const count = fileSystem.readSync(
+        descriptor,
+        buffer,
+        bytesRead,
+        buffer.length - bytesRead,
+        bytesRead
+      );
+      if (count === 0) break;
+      bytesRead += count;
+    }
+    if (bytesRead !== byteLength) {
+      const error = new Error('VeadoTube source changed during inspection');
+      error.code = 'source_changed';
+      error.offset = 0;
+      throw error;
+    }
+    return buffer.subarray(0, byteLength);
+  } finally {
+    fileSystem.closeSync(descriptor);
+  }
 }
 
 if (require.main === module) {

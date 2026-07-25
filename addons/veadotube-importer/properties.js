@@ -8,6 +8,9 @@ function parseProperties(input, options) {
   const limits = {
     maxProperties: 1024,
     maxPropertyValueBytes: 1024 * 1024,
+    maxPropertyDepth: 64,
+    maxPropertyPathBytes: 64 * 1024,
+    maxCumulativePropertyKeyBytes: 1024 * 1024,
     maxStringBytes: 64 * 1024,
     ...(options || {})
   };
@@ -15,6 +18,7 @@ function parseProperties(input, options) {
   const stack = [];
   const entries = new Map();
   let terminated = false;
+  let cumulativeKeyBytes = 0;
   while (reader.remaining > 0) {
     const typeOffset = reader.offset;
     const type = reader.u8();
@@ -36,15 +40,26 @@ function parseProperties(input, options) {
     if (pushed.some(segment => !segment)) {
       throw readerError('invalid_property_key', reader.offset, 'Property key contains an empty segment');
     }
+    if (stack.length + pushed.length > limits.maxPropertyDepth) {
+      throw readerError('property_depth_exceeded', reader.offset, 'Property path exceeds configured depth');
+    }
     stack.push(...pushed);
     const key = stack.join('/');
+    const keyBytes = Buffer.byteLength(key, 'utf8');
+    cumulativeKeyBytes += keyBytes;
+    if (keyBytes > limits.maxPropertyPathBytes ||
+        cumulativeKeyBytes > limits.maxCumulativePropertyKeyBytes) {
+      throw readerError('property_path_budget_exceeded', reader.offset, 'Property paths exceed configured budget');
+    }
     if (entries.has(key)) throw readerError('duplicate_property', typeOffset, `Duplicate property '${key}'`);
     const valueLength = reader.varUint();
     if (valueLength > limits.maxPropertyValueBytes) {
       throw readerError('property_value_too_large', reader.offset, 'Property value exceeds configured limit');
     }
     const valueOffset = reader.offset;
-    const valueReader = new BinaryReader(reader.raw(valueLength), 0, undefined, limits);
+    reader.require(valueLength);
+    const valueReader = new BinaryReader(reader.bytes, valueOffset, valueOffset + valueLength, limits);
+    reader.offset += valueLength;
     entries.set(key, decodeValue(type, valueReader, valueOffset));
   }
   if (!terminated) throw readerError('unterminated_properties', reader.offset, 'Property dictionary lacks terminator');

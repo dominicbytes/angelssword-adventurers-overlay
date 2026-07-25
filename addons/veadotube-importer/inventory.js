@@ -1,5 +1,7 @@
 'use strict';
 
+const { readFourCC } = require('./reader');
+
 const MAGIC = Buffer.from('VEADOTUBE', 'ascii');
 const DEFAULT_LIMITS = Object.freeze({
   maxFileBytes: 256 * 1024 * 1024,
@@ -58,7 +60,7 @@ function parseChunkInventory(input, options) {
     }
     chunks.push({
       id,
-      type: bytes.toString('ascii', offset + 4, offset + 8),
+      type: readFourCC(bytes, offset + 4),
       offset,
       dataOffset,
       length

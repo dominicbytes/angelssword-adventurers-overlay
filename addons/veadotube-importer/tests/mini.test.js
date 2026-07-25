@@ -32,6 +32,9 @@ function chunk(id, type, data) {
 function miniFixture(options) {
   const imageIds = options?.imageIds || [10, 11, 12, 13, 14, 15, 16, 17];
   const extendedValues = options?.extendedValues || null;
+  const frameCount = options?.frameCount || 1;
+  const frameDuration = options?.frameDuration ?? 0.1;
+  const loopCount = options?.loopCount || 0;
   const state = Buffer.concat([
     string('Happy'),
     Buffer.from([0x7]),
@@ -55,7 +58,11 @@ function miniFixture(options) {
   for (const id of imageIds) {
     const textureId = id + 1000;
     parts.push(chunk(id, 'AIMG', Buffer.concat([
-      u32(2), u32(2), Buffer.from([1]), u32(textureId), u32(0), u32(0), f64(0.1)
+      u32(2), u32(2), Buffer.from([frameCount]),
+      ...(frameCount > 1 ? [Buffer.from([loopCount])] : []),
+      ...Array.from({ length: frameCount }, () => Buffer.concat([
+        u32(textureId), u32(0), u32(0), f64(frameDuration)
+      ]))
     ])));
     parts.push(chunk(textureId, 'ABMP', Buffer.concat([
       u32(2), u32(2), Buffer.from('RAW.', 'ascii'), Buffer.alloc(16)
@@ -134,12 +141,32 @@ test('rejects decoded pixel budgets before texture allocation', () => {
   }), error => error.code === 'pixel_budget_exceeded');
 });
 
+test('rejects total frame amplification even when textures are shared', () => {
+  const bytes = miniFixture({ frameCount: 2 });
+  assert.throws(() => decodeMiniAvatar(bytes, parseChunkInventory(bytes), {
+    maxTotalFrames: 15
+  }), error => error.code === 'frame_budget_exceeded');
+});
+
+test('rejects excessive frame duration and loop counts', () => {
+  const longFrame = miniFixture({ frameDuration: 3601 });
+  assert.throws(() => decodeMiniAvatar(longFrame, parseChunkInventory(longFrame)), error => (
+    error.code === 'frame_duration_exceeded'
+  ));
+  const excessiveLoop = miniFixture({ frameCount: 2, loopCount: 101 });
+  assert.throws(() => decodeMiniAvatar(excessiveLoop, parseChunkInventory(excessiveLoop), {
+    maxLoopCount: 100
+  }), error => error.code === 'loop_count_exceeded');
+});
+
 test('rejects missing and mistyped Mini state references', () => {
   const bytes = miniFixture();
   const inventory = parseChunkInventory(bytes);
   inventory.chunks = inventory.chunks.filter(chunk => chunk.id !== 17);
+  const stateChunk = inventory.chunks.find(chunk => chunk.type === 'MSTA');
 
   assert.throws(() => decodeMiniAvatar(bytes, inventory), error => (
-    error.code === 'missing_reference' && error.referenceId === 17
+    error.code === 'missing_reference' && error.referenceId === 17 &&
+    error.offset === stateChunk.dataOffset + 35
   ));
 });

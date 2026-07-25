@@ -37,3 +37,27 @@ test('rejects invalid stack movement and oversized values', () => {
     error.code === 'property_value_too_large'
   ));
 });
+
+test('keeps nested value errors at absolute property offsets', () => {
+  const bytes = Buffer.concat([
+    Buffer.from([2]), string('count'), Buffer.from([1, 0x80]), Buffer.from([0])
+  ]);
+  const valueOffset = bytes.length - 2;
+
+  assert.throws(() => parseProperties(bytes), error => (
+    error.code === 'truncated_data' && error.offset === valueOffset + 1
+  ));
+});
+
+test('caps cumulative property path depth', () => {
+  const bytes = Buffer.concat([
+    Buffer.from([1]), string('a'), Buffer.from([1, 0]),
+    Buffer.from([1, 0]), string('b'), Buffer.from([1, 0]),
+    Buffer.from([1, 0]), string('c'), Buffer.from([1, 0]),
+    Buffer.from([0])
+  ]);
+
+  assert.throws(() => parseProperties(bytes, { maxPropertyDepth: 2 }), error => (
+    error.code === 'property_depth_exceeded'
+  ));
+});

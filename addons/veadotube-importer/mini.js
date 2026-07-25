@@ -21,6 +21,10 @@ function decodeMiniAvatar(bytes, inventory, options) {
     maxStringBytes: 64 * 1024,
     maxDimension: 16384,
     maxFrames: 1024,
+    maxTotalFrames: 10000,
+    maxFrameDuration: 3600,
+    maxAnimationDuration: 24 * 60 * 60,
+    maxLoopCount: 100000,
     maxDecodedPixels: 256 * 1024 * 1024,
     ...(options || {})
   };
@@ -44,13 +48,16 @@ function decodeMiniAvatar(bytes, inventory, options) {
     throw readerError('invalid_state_count', listChunk.dataOffset, 'Invalid Mini state list length');
   }
   const listReader = readerFor(bytes, listChunk, limits);
-  const stateIds = [];
-  while (listReader.remaining) stateIds.push(listReader.u32());
+  const stateReferences = [];
+  while (listReader.remaining) {
+    const referenceOffset = listReader.offset;
+    stateReferences.push({ id: listReader.u32(), offset: referenceOffset });
+  }
 
-  const states = stateIds.map(stateId => {
-    const stateChunk = chunksById.get(stateId);
+  const states = stateReferences.map(reference => {
+    const stateChunk = chunksById.get(reference.id);
     if (!stateChunk || stateChunk.type !== 'MSTA') {
-      throw referenceError(listChunk.dataOffset, stateId, 'MSTA');
+      throw referenceError(reference.offset, reference.id, 'MSTA');
     }
     return decodeState(bytes, stateChunk, chunksById, limits);
   });
@@ -94,8 +101,10 @@ function decodeState(bytes, chunk, chunksById, limits) {
   const rawFlags = reader.u8();
   const extendedLayout = hasExtendedStateLayout(reader, chunksById);
   if (extendedLayout) reader.raw(3);
-  const thumbnails = Array.from({ length: 4 }, () => reader.u32());
-  const images = Array.from({ length: 4 }, () => reader.u32());
+  const thumbnailReferences = readReferences(reader, 4);
+  const imageReferences = readReferences(reader, 4);
+  const thumbnails = thumbnailReferences.map(reference => reference.id);
+  const images = imageReferences.map(reference => reference.id);
   const undocumentedValues = extendedLayout
     ? Array.from({ length: 3 }, () => reader.f64())
     : [];
@@ -108,11 +117,11 @@ function decodeState(bytes, chunk, chunksById, limits) {
   if (reader.remaining !== 0) {
     throw readerError('unexpected_state_data', reader.offset, 'Unexpected bytes at end of MSTA chunk');
   }
-  for (const referenceId of [...thumbnails, ...images]) {
-    if (referenceId === 0) continue;
-    const target = chunksById.get(referenceId);
+  for (const reference of [...thumbnailReferences, ...imageReferences]) {
+    if (reference.id === 0) continue;
+    const target = chunksById.get(reference.id);
     if (!target || target.type !== 'AIMG') {
-      throw referenceError(chunk.dataOffset, referenceId, 'AIMG');
+      throw referenceError(reference.offset, reference.id, 'AIMG');
     }
   }
   return {
@@ -133,6 +142,13 @@ function decodeState(bytes, chunk, chunksById, limits) {
     shortcutMode,
     undocumentedValues
   };
+}
+
+function readReferences(reader, count) {
+  return Array.from({ length: count }, () => {
+    const offset = reader.offset;
+    return { id: reader.u32(), offset };
+  });
 }
 
 function hasExtendedStateLayout(reader, chunksById) {
@@ -195,6 +211,7 @@ function readShortcuts(reader, limits) {
 function decodeImages(bytes, imageIds, chunksById, limits) {
   const textures = new Map();
   let decodedPixelBudget = 0;
+  let totalFrames = 0;
 
   function decodeTexture(referenceId, referenceOffset) {
     if (textures.has(referenceId)) return textures.get(referenceId);
@@ -232,7 +249,15 @@ function decodeImages(bytes, imageIds, chunksById, limits) {
     if (frameCount === 0 || frameCount > limits.maxFrames) {
       throw readerError('invalid_frame_count', reader.offset, 'Image frame count exceeds configured limit');
     }
+    totalFrames += frameCount;
+    if (totalFrames > limits.maxTotalFrames) {
+      throw readerError('frame_budget_exceeded', reader.offset, 'Total image frames exceed configured limit');
+    }
     const loopCount = frameCount > 1 ? reader.varUint() : 0;
+    if (loopCount > limits.maxLoopCount) {
+      throw readerError('loop_count_exceeded', reader.offset, 'Image loop count exceeds configured limit');
+    }
+    let animationDuration = 0;
     const frames = Array.from({ length: frameCount }, () => {
       const referenceOffset = reader.offset;
       const textureId = reader.u32();
@@ -240,6 +265,13 @@ function decodeImages(bytes, imageIds, chunksById, limits) {
       const offsetY = reader.u32();
       const duration = reader.f64();
       if (duration < 0) throw readerError('invalid_frame_duration', reader.offset - 8, 'Negative frame duration');
+      if (duration > limits.maxFrameDuration) {
+        throw readerError('frame_duration_exceeded', reader.offset - 8, 'Frame duration exceeds configured limit');
+      }
+      animationDuration += duration;
+      if (animationDuration > limits.maxAnimationDuration) {
+        throw readerError('animation_duration_exceeded', reader.offset - 8, 'Animation duration exceeds configured limit');
+      }
       const texture = decodeTexture(textureId, referenceOffset);
       if (offsetX + texture.width > width || offsetY + texture.height > height) {
         throw readerError('frame_out_of_bounds', referenceOffset + 4, 'Image frame exceeds canvas bounds');

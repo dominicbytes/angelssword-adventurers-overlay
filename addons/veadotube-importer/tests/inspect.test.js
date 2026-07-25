@@ -57,3 +57,21 @@ test('checks the configured file limit before reading payload bytes', t => {
     error.code === 'file_too_large' && error.offset === 0
   ));
 });
+
+test('detects a source that grows through the opened descriptor', () => {
+  let closed = false;
+  const fileSystem = {
+    openSync: () => 7,
+    fstatSync: () => ({ size: 4 }),
+    readSync(_fd, buffer) {
+      buffer.set([1, 2, 3, 4, 5]);
+      return 5;
+    },
+    closeSync() { closed = true; }
+  };
+
+  assert.throws(() => inspectFile('avatar.veado', { fileSystem }), error => (
+    error.code === 'source_changed'
+  ));
+  assert.equal(closed, true);
+});

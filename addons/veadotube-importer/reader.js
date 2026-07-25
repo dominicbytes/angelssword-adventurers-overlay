@@ -9,6 +9,16 @@ function readerError(code, offset, message) {
   return error;
 }
 
+function readFourCC(bytes, offset) {
+  for (let index = 0; index < 4; index += 1) {
+    const value = bytes[offset + index];
+    if (value < 0x20 || value > 0x7e) {
+      throw readerError('invalid_fourcc', offset + index, 'FourCC contains non-printable ASCII');
+    }
+  }
+  return bytes.toString('latin1', offset, offset + 4);
+}
+
 class BinaryReader {
   constructor(input, start, end, options) {
     this.bytes = Buffer.isBuffer(input) ? input : Buffer.from(input);
@@ -54,7 +64,7 @@ class BinaryReader {
 
   fourCC() {
     this.require(4);
-    const value = this.bytes.toString('ascii', this.offset, this.offset + 4);
+    const value = readFourCC(this.bytes, this.offset);
     this.offset += 4;
     return value;
   }
@@ -96,4 +106,4 @@ class BinaryReader {
   }
 }
 
-module.exports = { BinaryReader, readerError };
+module.exports = { BinaryReader, readFourCC, readerError };
