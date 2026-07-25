@@ -57,7 +57,9 @@ repository without rewriting its source.
 
 ## Plugin status
 
-- Reactive Motion Effects: first working slice included at version `0.1.0`.
+- Reactive Motion Effects: validated schema migration, temporary preview,
+  Windows reduced-motion handling, reconnect replay, 20 Hz audio publication,
+  and duplicate-frame prevention included at version `0.2.0`.
 - Universal Input Mapper: keyboard foundation complete at version `0.2.0` with
   multiple mappings, contexts, press/hold/toggle modes, conflicts, and import/export.
 - OBS Scene-Aware Profiles: OBS WebSocket 5.x client, scene/action profiles,
@@ -92,9 +94,7 @@ Implementation order:
 1. Run the final OBS Scene-Aware Profiles live check once the local OBS build
    includes obs-websocket. Mock authentication, lifecycle, reconnect, and
    backpressure coverage is complete.
-2. Finish Reactive Motion Effects polish and presets. Verify configuration
-   migration, preview, reduced motion, reconnect, and performance behavior.
-3. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
+2. Build the VeadoTube Mini Importer from private fixtures. Verify deterministic
    inspect-only output before extraction and confirm the source remains unchanged.
 
 Private VeadoTube `.vaedo` and `.veado` fixtures belong under the ignored
