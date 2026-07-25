@@ -91,3 +91,20 @@ test('skips a busy processor instead of building an inference queue', async () =
   await clock.step(30);
   assert.equal(calls, 2);
 });
+
+test('notifies processors when the shared camera stops', () => {
+  const service = createTrackingService({
+    requestFrame: () => 1,
+    cancelFrame() {}
+  });
+  let stops = 0;
+  service.registerProcessor('hands', {
+    process() {},
+    onStop() { stops += 1; }
+  });
+
+  service.start({ readyState: 2 });
+  service.stop();
+
+  assert.equal(stops, 1);
+});

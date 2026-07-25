@@ -43,7 +43,8 @@ browser targets expose `window.ASAPluginHost` with these version 1 capabilities:
 - `registerTrackingProcessor(pluginId, definition)` registers inference work with
   the core webcam scheduler and returns an unregister function. Definitions may
   provide `process(video, timestamp)`, `onResult`, `onError`, and
-  `everyNFrames`. The core retains camera start/stop and frame-loop ownership.
+  `onStop`, plus `everyNFrames`. `onStop` runs when the shared camera stops so
+  plugins can clear held state. The core retains camera start/stop and frame-loop ownership.
 - `registerAction(actionId, definition)` publishes a named operation and returns
   an unregister function. Definitions provide a label, optional declarative
   parameters, and an `invoke` function.

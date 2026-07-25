@@ -64,6 +64,7 @@
         process: definition.process,
         onResult: typeof definition.onResult === 'function' ? definition.onResult : null,
         onError: typeof definition.onError === 'function' ? definition.onError : null,
+        onStop: typeof definition.onStop === 'function' ? definition.onStop : null,
         everyNFrames,
         busy: false
       });
@@ -80,10 +81,20 @@
     },
 
     stop() {
+      const wasRunning = running;
       running = false;
       source = null;
       if (frameHandle !== null) cancelFrame(frameHandle);
       frameHandle = null;
+      if (wasRunning) {
+        for (const processor of processors.values()) {
+          try {
+            processor.onStop?.();
+          } catch (error) {
+            processor.onError?.(error);
+          }
+        }
+      }
     },
 
     getDiagnostics() {
