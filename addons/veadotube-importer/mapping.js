@@ -2,7 +2,8 @@
 
 const { isSupportedTextureFormat } = require('./textures');
 
-const CORE_TARGETS = new Set(['neutral', 'happy', 'sad', 'surprised']);
+const CORE_TARGET_NAMES = Object.freeze(['neutral', 'happy', 'sad', 'surprised']);
+const CORE_TARGETS = new Set(CORE_TARGET_NAMES);
 const IMAGE_ROLES = ['idle', 'speaking', 'blinking_idle', 'blinking_speaking'];
 const EFFECT_LISTS = [
   ['closedEffects', 'closed'],
@@ -263,4 +264,4 @@ function collectShortcuts(states) {
   })));
 }
 
-module.exports = { createImportPlan, suggestMappings };
+module.exports = { CORE_TARGET_NAMES, createImportPlan, suggestMappings };
