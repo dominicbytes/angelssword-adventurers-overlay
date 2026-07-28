@@ -57,9 +57,15 @@ test('stages and validates a static model without exposing it as installed', () 
   withAssetsRoot(assetsRoot => {
     const staged = stageStaticImport(importRequest(assetsRoot));
 
-    assert.equal(path.dirname(staged.stageDir), fs.realpathSync(assetsRoot));
+    assert.equal(path.dirname(path.dirname(staged.stageDir)), fs.realpathSync(assetsRoot));
+    assert.equal(path.basename(path.dirname(staged.stageDir)), '.veadotube-import-staging');
     assert.equal(staged.targetDir, path.join(fs.realpathSync(assetsRoot), 'Avatar One'));
     assert.equal(fs.existsSync(staged.targetDir), false);
+    const discoverableModels = fs.readdirSync(assetsRoot, { withFileTypes: true })
+      .filter(entry => entry.isDirectory())
+      .filter(entry => fs.existsSync(path.join(assetsRoot, entry.name, 'neutral_idle.png')))
+      .map(entry => entry.name);
+    assert.deepEqual(discoverableModels, []);
     assert.deepEqual(fs.readdirSync(staged.stageDir).sort(), [
       '.as-adventurer-import.json',
       'neutral_idle.png'
@@ -68,6 +74,7 @@ test('stages and validates a static model without exposing it as installed', () 
     assert.deepEqual(validateStagedImport(staged), {
       schemaVersion: 1,
       importer: '@as-adventurer/veadotube-importer',
+      importerVersion: '0.5.0',
       modelName: 'Avatar One',
       source: {
         name: 'avatar.veado',
@@ -133,6 +140,37 @@ test('refuses a tampered stage and permits explicit cleanup', () => {
     assert.equal(fs.existsSync(staged.targetDir), false);
     assert.equal(discardStagedImport(staged), true);
     assert.equal(fs.existsSync(staged.stageDir), false);
+  });
+});
+
+test('rejects tampered importer provenance in the staged manifest', () => {
+  withAssetsRoot(assetsRoot => {
+    const staged = stageStaticImport(importRequest(assetsRoot));
+    const manifestPath = path.join(staged.stageDir, '.as-adventurer-import.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.importerVersion = '0.4.0';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+
+    assert.throws(
+      () => validateStagedImport(staged),
+      error => error.code === 'invalid_stage_manifest'
+    );
+    assert.equal(discardStagedImport(staged), true);
+  });
+});
+
+test('rejects a staging directory replaced after it was created', () => {
+  withAssetsRoot(assetsRoot => {
+    const staged = stageStaticImport(importRequest(assetsRoot));
+    const displaced = `${staged.stageDir}-displaced`;
+    fs.renameSync(staged.stageDir, displaced);
+    fs.mkdirSync(staged.stageDir);
+
+    assert.throws(
+      () => commitStagedImport(staged),
+      error => error.code === 'invalid_stage_path'
+    );
+    assert.equal(fs.existsSync(staged.targetDir), false);
   });
 });
 

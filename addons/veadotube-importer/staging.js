@@ -3,11 +3,14 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const { assertWindowsPlatform } = require('./platform');
 const { validatePng } = require('./png');
 
 const IMPORTER_NAME = '@as-adventurer/veadotube-importer';
+const IMPORTER_VERSION = '0.5.0';
 const MANIFEST_NAME = '.as-adventurer-import.json';
-const STAGE_PREFIX = '.veadotube-import-';
+const STAGE_CONTAINER = '.veadotube-import-staging';
+const STAGE_PREFIX = 'stage-';
 const MAX_ASSETS = 1000;
 const MAX_ASSET_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 256 * 1024 * 1024;
@@ -23,14 +26,16 @@ function stageStaticImport(request) {
   if (pathIsOccupied(targetDir)) {
     throw stageError('model_exists', `Model ${modelName} already exists`);
   }
+  const stageRoot = resolveStageRoot(assetsRoot, true);
   const manifest = {
     schemaVersion: 1,
     importer: IMPORTER_NAME,
+    importerVersion: IMPORTER_VERSION,
     modelName,
     source,
     assets: prepared.map(({ png, ...asset }) => asset)
   };
-  const stageDir = fs.mkdtempSync(path.join(assetsRoot, STAGE_PREFIX));
+  const stageDir = fs.mkdtempSync(path.join(stageRoot, STAGE_PREFIX));
 
   try {
     for (const asset of prepared) {
@@ -45,18 +50,27 @@ function stageStaticImport(request) {
       { flag: 'wx', mode: 0o600 }
     );
   } catch (error) {
-    removeOwnedStage(assetsRoot, stageDir);
+    removeOwnedStage(stageRoot, stageDir);
     throw error;
   }
 
-  return Object.freeze({ assetsRoot, modelName, stageDir, targetDir });
+  const stageIdentity = fileIdentity(fs.lstatSync(stageDir));
+  return Object.freeze({
+    assetsRoot,
+    modelName,
+    stageDir,
+    stageIdentity: Object.freeze(stageIdentity),
+    targetDir
+  });
 }
 
 function commitStagedImport(staged) {
-  const manifest = validateStagedImport(staged);
-  if (pathIsOccupied(staged.targetDir)) {
-    throw stageError('model_exists', `Model ${staged.modelName} already exists`);
+  assertWindowsPlatform();
+  if (pathIsOccupied(staged?.targetDir)) {
+    throw stageError('model_exists', `Model ${staged?.modelName} already exists`);
   }
+  const manifest = validateStagedImport(staged);
+  validateStageDirectory(staged.assetsRoot, staged.stageDir, staged.stageIdentity);
   try {
     fs.renameSync(staged.stageDir, staged.targetDir);
   } catch (error) {
@@ -72,12 +86,12 @@ function discardStagedImport(staged) {
   const assetsRoot = resolveAssetsRoot(staged?.assetsRoot);
   let stageDir;
   try {
-    stageDir = validateStageDirectory(assetsRoot, staged?.stageDir);
+    stageDir = validateStageDirectory(assetsRoot, staged?.stageDir, staged?.stageIdentity);
   } catch (error) {
     if (error.code === 'invalid_stage_path' && !pathIsOccupied(staged?.stageDir)) return false;
     throw error;
   }
-  removeOwnedStage(assetsRoot, stageDir);
+  removeOwnedStage(path.dirname(stageDir), stageDir);
   return true;
 }
 
@@ -101,20 +115,25 @@ function installStaticModel(request) {
 function validateStagedImport(staged) {
   const assetsRoot = resolveAssetsRoot(staged?.assetsRoot);
   const modelName = validateModelName(staged?.modelName);
-  const stageDir = validateStageDirectory(assetsRoot, staged?.stageDir);
+  const stageDir = validateStageDirectory(
+    assetsRoot,
+    staged?.stageDir,
+    staged?.stageIdentity
+  );
   const expectedTarget = path.join(assetsRoot, modelName);
   if (path.resolve(staged?.targetDir || '') !== expectedTarget) {
     throw stageError('invalid_stage_target', 'Staged import target does not match its model name');
   }
 
   const manifestPath = path.join(stageDir, MANIFEST_NAME);
-  const manifestStat = readRegularFileStat(manifestPath, 'invalid_stage_manifest');
-  if (manifestStat.size > 1024 * 1024) {
-    throw stageError('invalid_stage_manifest', 'Staged import manifest is too large');
-  }
+  const manifestBytes = readBoundedRegularFile(
+    manifestPath,
+    1024 * 1024,
+    'invalid_stage_manifest'
+  );
   let manifest;
   try {
-    manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest = JSON.parse(manifestBytes.toString('utf8'));
   } catch (error) {
     throw stageError('invalid_stage_manifest', 'Staged import manifest is not valid JSON', error);
   }
@@ -128,12 +147,11 @@ function validateStagedImport(staged) {
   let totalBytes = 0;
   for (const asset of assets) {
     const assetPath = path.join(stageDir, asset.fileName);
-    const stat = readRegularFileStat(assetPath, 'staged_asset_invalid');
-    if (stat.size !== asset.byteLength || stat.size > MAX_ASSET_BYTES) {
+    const png = readBoundedRegularFile(assetPath, MAX_ASSET_BYTES, 'staged_asset_invalid');
+    if (png.length !== asset.byteLength) {
       throw stageError('staged_asset_invalid', `Staged asset ${asset.fileName} has the wrong size`);
     }
-    totalBytes = addToBudget(totalBytes, stat.size);
-    const png = fs.readFileSync(assetPath);
+    totalBytes = addToBudget(totalBytes, png.length);
     const sha256 = sha256Hex(png);
     if (sha256 !== asset.sha256) {
       throw stageError('staged_asset_invalid', `Staged asset ${asset.fileName} has the wrong hash`);
@@ -150,6 +168,10 @@ function validateStagedImport(staged) {
     if (decoded.width !== asset.width || decoded.height !== asset.height) {
       throw stageError('staged_asset_invalid', `Staged asset ${asset.fileName} has wrong dimensions`);
     }
+  }
+  const finalNames = fs.readdirSync(stageDir).sort(compareText);
+  if (!sameNames(finalNames, expectedNames)) {
+    throw stageError('staged_file_mismatch', 'Staged import changed during validation');
   }
   return manifest;
 }
@@ -187,7 +209,8 @@ function validatePreviews(previews) {
 
 function validateManifest(manifest, modelName) {
   if (!isPlainObject(manifest) || manifest.schemaVersion !== 1 ||
-      manifest.importer !== IMPORTER_NAME || manifest.modelName !== modelName) {
+      manifest.importer !== IMPORTER_NAME || manifest.importerVersion !== IMPORTER_VERSION ||
+      manifest.modelName !== modelName) {
     throw stageError('invalid_stage_manifest', 'Staged import manifest identity is invalid');
   }
   validateSource(manifest.source);
@@ -273,7 +296,33 @@ function resolveAssetsRoot(assetsRoot) {
   return fs.realpathSync(assetsRoot);
 }
 
-function validateStageDirectory(assetsRoot, stageDir) {
+function resolveStageRoot(assetsRoot, create = false) {
+  const candidate = path.join(assetsRoot, STAGE_CONTAINER);
+  if (create) {
+    try {
+      fs.mkdirSync(candidate, { mode: 0o700 });
+    } catch (error) {
+      if (error.code !== 'EEXIST') {
+        throw stageError('invalid_stage_path', 'Import staging root could not be created', error);
+      }
+    }
+  }
+  let stat;
+  let resolved;
+  try {
+    stat = fs.lstatSync(candidate);
+    resolved = fs.realpathSync(candidate);
+  } catch (error) {
+    throw stageError('invalid_stage_path', 'Import staging root does not exist', error);
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink() || path.dirname(resolved) !== assetsRoot ||
+      path.basename(resolved) !== STAGE_CONTAINER) {
+    throw stageError('invalid_stage_path', 'Import staging root is not a safe directory');
+  }
+  return resolved;
+}
+
+function validateStageDirectory(assetsRoot, stageDir, expectedIdentity) {
   if (typeof stageDir !== 'string') {
     throw stageError('invalid_stage_path', 'Staged import path is invalid');
   }
@@ -285,24 +334,79 @@ function validateStageDirectory(assetsRoot, stageDir) {
   } catch (error) {
     throw stageError('invalid_stage_path', 'Staged import directory does not exist', error);
   }
-  if (!stat.isDirectory() || stat.isSymbolicLink() || path.dirname(resolved) !== assetsRoot ||
-      !path.basename(resolved).startsWith(STAGE_PREFIX)) {
+  const stageRoot = resolveStageRoot(assetsRoot);
+  if (!stat.isDirectory() || stat.isSymbolicLink() || path.dirname(resolved) !== stageRoot ||
+      !path.basename(resolved).startsWith(STAGE_PREFIX) ||
+      !sameIdentity(stat, expectedIdentity)) {
     throw stageError('invalid_stage_path', 'Staged import is outside the assets root');
   }
   return resolved;
 }
 
-function readRegularFileStat(filePath, code) {
-  let stat;
+function readBoundedRegularFile(filePath, maxBytes, code) {
+  let pathStat;
   try {
-    stat = fs.lstatSync(filePath);
+    pathStat = fs.lstatSync(filePath);
   } catch (error) {
     throw stageError(code, `Staged file ${path.basename(filePath)} is missing`, error);
   }
-  if (!stat.isFile() || stat.isSymbolicLink()) {
+  if (!pathStat.isFile() || pathStat.isSymbolicLink()) {
     throw stageError(code, `Staged file ${path.basename(filePath)} is not a regular file`);
   }
-  return stat;
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+  let descriptor;
+  try {
+    descriptor = fs.openSync(filePath, flags);
+  } catch (error) {
+    throw stageError(code, `Staged file ${path.basename(filePath)} could not be opened`, error);
+  }
+  try {
+    const before = fs.fstatSync(descriptor);
+    if (!before.isFile() || !sameIdentity(pathStat, before) ||
+        !Number.isSafeInteger(before.size) || before.size < 0 || before.size > maxBytes) {
+      throw stageError(code, `Staged file ${path.basename(filePath)} is invalid or too large`);
+    }
+    const bytes = Buffer.alloc(before.size + 1);
+    let bytesRead = 0;
+    while (bytesRead < bytes.length) {
+      const count = fs.readSync(
+        descriptor,
+        bytes,
+        bytesRead,
+        bytes.length - bytesRead,
+        null
+      );
+      if (count === 0) break;
+      bytesRead += count;
+    }
+    const after = fs.fstatSync(descriptor);
+    let finalPathStat;
+    try {
+      finalPathStat = fs.lstatSync(filePath);
+    } catch (error) {
+      throw stageError(code, `Staged file ${path.basename(filePath)} changed during validation`, error);
+    }
+    if (bytesRead !== before.size || !sameSnapshot(before, after) ||
+        finalPathStat.isSymbolicLink() || !sameSnapshot(after, finalPathStat)) {
+      throw stageError(code, `Staged file ${path.basename(filePath)} changed during validation`);
+    }
+    return bytes.subarray(0, bytesRead);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+
+function fileIdentity(stat) {
+  return { dev: stat.dev, ino: stat.ino };
+}
+
+function sameIdentity(left, right) {
+  return Boolean(right) && left.dev === right.dev && left.ino === right.ino;
+}
+
+function sameSnapshot(left, right) {
+  return sameIdentity(left, right) && left.size === right.size &&
+    left.mtimeMs === right.mtimeMs && left.ctimeMs === right.ctimeMs;
 }
 
 function pathIsOccupied(filePath) {
@@ -324,9 +428,9 @@ function addToBudget(total, amount) {
   return next;
 }
 
-function removeOwnedStage(assetsRoot, stageDir) {
+function removeOwnedStage(stageRoot, stageDir) {
   const resolved = path.resolve(stageDir);
-  if (path.dirname(resolved) !== assetsRoot || !path.basename(resolved).startsWith(STAGE_PREFIX)) {
+  if (path.dirname(resolved) !== stageRoot || !path.basename(resolved).startsWith(STAGE_PREFIX)) {
     return;
   }
   fs.rmSync(resolved, { recursive: true, force: true });
