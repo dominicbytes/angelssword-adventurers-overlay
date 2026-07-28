@@ -66,20 +66,23 @@ function stageStaticImport(request) {
 
 function commitStagedImport(staged) {
   assertWindowsPlatform();
-  if (pathIsOccupied(staged?.targetDir)) {
-    throw stageError('model_exists', `Model ${staged?.modelName} already exists`);
+  const assetsRoot = resolveAssetsRoot(staged?.assetsRoot);
+  const modelName = validateModelName(staged?.modelName);
+  const targetDir = path.join(assetsRoot, modelName);
+  if (pathIsOccupied(targetDir)) {
+    throw stageError('model_exists', `Model ${modelName} already exists`);
   }
   const manifest = validateStagedImport(staged);
-  validateStageDirectory(staged.assetsRoot, staged.stageDir, staged.stageIdentity);
+  const stageDir = validateStageDirectory(assetsRoot, staged?.stageDir, staged?.stageIdentity);
   try {
-    fs.renameSync(staged.stageDir, staged.targetDir);
+    fs.renameSync(stageDir, targetDir);
   } catch (error) {
-    if (pathIsOccupied(staged.targetDir)) {
-      throw stageError('model_exists', `Model ${staged.modelName} already exists`, error);
+    if (pathIsOccupied(targetDir)) {
+      throw stageError('model_exists', `Model ${modelName} already exists`, error);
     }
     throw stageError('commit_failed', 'Staged import could not be committed', error);
   }
-  return { targetDir: staged.targetDir, manifest };
+  return { targetDir, manifest };
 }
 
 function discardStagedImport(staged) {
@@ -101,9 +104,9 @@ function installStaticModel(request) {
     staged = stageStaticImport(request);
     return commitStagedImport(staged);
   } catch (error) {
-    if (staged && pathIsOccupied(staged.stageDir)) {
+    if (staged) {
       try {
-        discardStagedImport(staged);
+        if (pathIsOccupied(staged.stageDir)) discardStagedImport(staged);
       } catch {
         // Preserve the validation or commit failure that prevented installation.
       }
@@ -387,7 +390,8 @@ function readBoundedRegularFile(filePath, maxBytes, code) {
       throw stageError(code, `Staged file ${path.basename(filePath)} changed during validation`, error);
     }
     if (bytesRead !== before.size || !sameSnapshot(before, after) ||
-        finalPathStat.isSymbolicLink() || !sameSnapshot(after, finalPathStat)) {
+        !finalPathStat.isFile() || finalPathStat.isSymbolicLink() ||
+        !sameSnapshot(after, finalPathStat)) {
       throw stageError(code, `Staged file ${path.basename(filePath)} changed during validation`);
     }
     return bytes.subarray(0, bytesRead);
