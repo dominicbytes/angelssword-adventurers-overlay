@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VeadoTube Mini Importer</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">AS Adventurer Byte Edition</p>
+    <h1>VeadoTube Mini Importer</h1>
+    <p>Review every mapping before static artwork is installed.</p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="source-heading">
+      <h2 id="source-heading">1. Choose a source</h2>
+      <p>Your avatar stays in this local importer process and is not uploaded elsewhere.</p>
+      <div class="source-row">
+        <input id="source-file" type="file" accept=".veado,.vaedo">
+        <button id="load-source" type="button">Inspect file</button>
+      </div>
+      <p id="source-status" class="status" role="status"></p>
+    </section>
+
+    <section id="mapping-panel" class="panel" aria-labelledby="mapping-heading" hidden>
+      <h2 id="mapping-heading">2. Confirm mappings</h2>
+      <p id="source-summary"></p>
+      <div id="state-list" class="state-list"></div>
+
+      <div class="install-box">
+        <label for="model-name">New model name</label>
+        <input id="model-name" type="text" maxlength="64" autocomplete="off"
+          placeholder="My imported avatar">
+        <label class="confirmation">
+          <input id="confirm-mappings" type="checkbox">
+          I reviewed these mappings and understand that only mapped static assets will be installed.
+        </label>
+        <button id="install-model" type="button" disabled>Install static model</button>
+        <p id="import-status" class="status" role="status"></p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
