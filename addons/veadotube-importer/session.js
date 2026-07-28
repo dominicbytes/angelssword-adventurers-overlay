@@ -9,7 +9,7 @@ const { generateStaticPreviews } = require('./preview');
 const { installStaticModel } = require('./staging');
 
 function createImportSession(input) {
-  const bytes = Buffer.from(input?.bytes || []);
+  const bytes = Buffer.isBuffer(input?.bytes) ? input.bytes : Buffer.from(input?.bytes || []);
   const fileName = validateFileName(input?.fileName);
   const assetStates = Array.isArray(input?.assetStates) ? [...input.assetStates] : [];
   const limits = input?.limits || {};

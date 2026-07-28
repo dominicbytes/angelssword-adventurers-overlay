@@ -8,20 +8,8 @@ const path = require('node:path');
 
 const { validatePng } = require('../png');
 const { createImportSession } = require('../session');
+const { withAssetsRoot } = require('./helpers/assets-root');
 const { miniFixture } = require('./helpers/mini-fixture');
-
-function withAssetsRoot(run) {
-  const privateRoot = path.join(process.cwd(), '.private-fixtures');
-  fs.mkdirSync(privateRoot, { recursive: true });
-  const directory = fs.mkdtempSync(path.join(privateRoot, 'session-test-'));
-  const assetsRoot = path.join(directory, 'assets');
-  fs.mkdirSync(assetsRoot);
-  try {
-    return run(assetsRoot);
-  } finally {
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-}
 
 test('previews and installs an explicitly confirmed Mini mapping', () => {
   withAssetsRoot(assetsRoot => {
@@ -98,5 +86,28 @@ test('reports and blocks static assets above the session preview limit', () => {
       error.code === 'mapped_asset_exceeds_limit' && error.assets.length === 2
     ));
     assert.deepEqual(fs.readdirSync(assetsRoot), []);
+  });
+});
+
+test('takes ownership of an uploaded Buffer without copying the whole source', () => {
+  withAssetsRoot(assetsRoot => {
+    const bytes = miniFixture();
+    const originalFrom = Buffer.from;
+    let copiedWholeSource = false;
+    Buffer.from = function trackedBufferFrom(value, ...args) {
+      if (value === bytes) copiedWholeSource = true;
+      return Reflect.apply(originalFrom, Buffer, [value, ...args]);
+    };
+    try {
+      const session = createImportSession({
+        bytes,
+        fileName: 'owned-buffer.veado',
+        assetsRoot
+      });
+      assert.equal(session.source.byteLength, bytes.length);
+    } finally {
+      Buffer.from = originalFrom;
+    }
+    assert.equal(copiedWholeSource, false);
   });
 });

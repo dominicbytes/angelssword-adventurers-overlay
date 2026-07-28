@@ -11,12 +11,13 @@ const confirmMappings = document.getElementById('confirm-mappings');
 const installModel = document.getElementById('install-model');
 const importStatus = document.getElementById('import-status');
 const previewUrls = new Set();
+let activeSessionId = null;
 
 loadSource.addEventListener('click', inspectSelectedFile);
 installModel.addEventListener('click', installConfirmedModel);
 modelName.addEventListener('input', updateInstallState);
 confirmMappings.addEventListener('change', updateInstallState);
-stateList.addEventListener('change', updateInstallState);
+stateList.addEventListener('change', invalidateMappingConfirmation);
 window.addEventListener('beforeunload', clearPreviewUrls);
 
 async function inspectSelectedFile() {
@@ -46,6 +47,7 @@ async function inspectSelectedFile() {
 
 function renderReport(report) {
   clearPreviewUrls();
+  activeSessionId = report.sessionId;
   stateList.replaceChildren();
   confirmMappings.checked = false;
   importStatus.textContent = '';
@@ -82,7 +84,7 @@ function renderReport(report) {
 
     const assets = document.createElement('div');
     assets.className = 'asset-grid';
-    for (const asset of state.assets) assets.append(renderAsset(asset));
+    for (const asset of state.assets) assets.append(renderAsset(asset, report.sessionId));
     card.append(assets);
     stateList.append(card);
   }
@@ -90,7 +92,7 @@ function renderReport(report) {
   updateInstallState();
 }
 
-function renderAsset(asset) {
+function renderAsset(asset, sessionId) {
   const figure = document.createElement('figure');
   const frame = document.createElement('div');
   frame.className = 'preview-frame';
@@ -98,7 +100,7 @@ function renderAsset(asset) {
     const image = document.createElement('img');
     image.alt = `${asset.role.replaceAll('_', ' ')} preview`;
     frame.append(image);
-    loadPreview(image, asset.sourceImageId);
+    loadPreview(image, sessionId, asset.sourceImageId);
   } else {
     const unavailable = document.createElement('span');
     unavailable.textContent = asset.kind === 'animated_unresolved'
@@ -112,9 +114,9 @@ function renderAsset(asset) {
   return figure;
 }
 
-async function loadPreview(image, sourceImageId) {
+async function loadPreview(image, sessionId, sourceImageId) {
   try {
-    const response = await fetch(`/api/preview/${sourceImageId}`);
+    const response = await fetch(`/api/preview/${sessionId}/${sourceImageId}`);
     if (!response.ok) throw new Error('Preview unavailable');
     const url = URL.createObjectURL(await response.blob());
     previewUrls.add(url);
@@ -136,6 +138,7 @@ async function installConfirmedModel() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        sessionId: activeSessionId,
         modelName: modelName.value.trim(),
         confirmed: confirmMappings.checked,
         selections
@@ -149,6 +152,14 @@ async function installConfirmedModel() {
   } finally {
     updateInstallState();
   }
+}
+
+function invalidateMappingConfirmation() {
+  if (confirmMappings.checked) {
+    confirmMappings.checked = false;
+    setStatus(importStatus, 'A mapping changed. Review it and confirm again.');
+  }
+  updateInstallState();
 }
 
 function updateInstallState() {

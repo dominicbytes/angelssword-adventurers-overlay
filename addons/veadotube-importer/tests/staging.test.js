@@ -12,25 +12,13 @@ const {
   stageStaticImport,
   validateStagedImport
 } = require('../staging');
+const { withAssetsRoot } = require('./helpers/assets-root');
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mPgEpFrAAABJQC9MRgrDgAAAABJRU5ErkJggg==',
   'base64'
 );
 const PNG_SHA256 = '70573fd934ef71e4c48e0dd2089c7732d0410d8e9845ab16716a030efb5c4f47';
-
-function withAssetsRoot(run) {
-  const privateRoot = path.join(process.cwd(), '.private-fixtures');
-  fs.mkdirSync(privateRoot, { recursive: true });
-  const directory = fs.mkdtempSync(path.join(privateRoot, 'staging-test-'));
-  const assetsRoot = path.join(directory, 'assets');
-  fs.mkdirSync(assetsRoot);
-  try {
-    return run(assetsRoot);
-  } finally {
-    fs.rmSync(directory, { recursive: true, force: true });
-  }
-}
 
 function importRequest(assetsRoot) {
   return {

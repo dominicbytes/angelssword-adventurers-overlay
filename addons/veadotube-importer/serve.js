@@ -4,6 +4,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
+const { assertWindowsPlatform } = require('./platform');
 const { createImportSession } = require('./session');
 
 const DEFAULT_MAX_SOURCE_BYTES = 256 * 1024 * 1024;
@@ -18,12 +19,13 @@ const UI_FILES = new Map([
 function createImporterServer(options) {
   const assetsRoot = options?.assetsRoot || path.resolve(__dirname, '..', '..', 'public', 'assets');
   const assetStates = Array.isArray(options?.assetStates) ? [...options.assetStates] : [];
+  const fileSystem = options?.fileSystem || fs;
   const maxSourceBytes = Math.min(
     options?.maxSourceBytes ?? DEFAULT_MAX_SOURCE_BYTES,
     DEFAULT_MAX_SOURCE_BYTES
   );
   const cookieToken = crypto.randomBytes(32).toString('hex');
-  let session = null;
+  let currentSession = null;
 
   const server = http.createServer((request, response) => {
     handleRequest(request, response).catch(error => sendError(response, error));
@@ -34,8 +36,9 @@ function createImporterServer(options) {
 
   async function handleRequest(request, response) {
     setSecurityHeaders(response);
-    if (!isLoopbackHost(request.headers.host)) {
-      throw httpError('request_forbidden', 403, 'Importer accepts only loopback Host headers');
+    if (!isLoopbackHost(request.headers.host) ||
+        !isLoopbackAddress(request.socket.remoteAddress)) {
+      throw httpError('request_forbidden', 403, 'Importer accepts only loopback connections');
     }
     const url = new URL(request.url, 'http://127.0.0.1');
     const staticFile = UI_FILES.get(url.pathname);
@@ -46,7 +49,7 @@ function createImporterServer(options) {
           `${COOKIE_NAME}=${cookieToken}; HttpOnly; SameSite=Strict; Path=/`
         );
       }
-      return sendUiFile(response, staticFile);
+      return sendUiFile(response, staticFile, fileSystem);
     }
     if (!hasSessionCookie(request.headers.cookie, cookieToken)) {
       throw httpError('request_forbidden', 403, 'Importer session cookie is required');
@@ -63,20 +66,24 @@ function createImporterServer(options) {
         assetStates,
         limits: { maxFileBytes: maxSourceBytes }
       });
-      session = nextSession;
+      currentSession = {
+        id: crypto.randomBytes(32).toString('hex'),
+        importer: nextSession
+      };
       return sendJson(response, 200, {
-        source: session.source,
-        format: session.format,
-        warnings: session.warnings,
-        metadata: session.metadata,
-        view: session.view
+        sessionId: currentSession.id,
+        source: nextSession.source,
+        format: nextSession.format,
+        warnings: nextSession.warnings,
+        metadata: nextSession.metadata,
+        view: nextSession.view
       });
     }
 
-    const previewMatch = /^\/api\/preview\/([1-9][0-9]*)$/.exec(url.pathname);
+    const previewMatch = /^\/api\/preview\/([a-f0-9]{64})\/([1-9][0-9]*)$/.exec(url.pathname);
     if (request.method === 'GET' && previewMatch) {
-      requireSession(session);
-      const preview = session.preview(Number(previewMatch[1]));
+      const importer = requireSession(currentSession, previewMatch[1]);
+      const preview = importer.preview(Number(previewMatch[2]));
       response.writeHead(200, {
         'Content-Type': 'image/png',
         'Content-Length': preview.png.length
@@ -88,9 +95,9 @@ function createImporterServer(options) {
     if (request.method === 'POST' && url.pathname === '/api/import') {
       requireSameOrigin(request);
       requireContentType(request, 'application/json');
-      requireSession(session);
       const confirmation = await readJson(request);
-      const installed = session.install(confirmation);
+      const importer = requireSession(currentSession, confirmation.sessionId);
+      const installed = importer.install(confirmation);
       return sendJson(response, 201, {
         modelName: installed.manifest.modelName,
         assets: installed.manifest.assets.map(asset => asset.state),
@@ -105,6 +112,7 @@ function createImporterServer(options) {
 }
 
 function startImporterServer(options) {
+  assertWindowsPlatform();
   const port = options?.port ?? 3010;
   const server = createImporterServer(options);
   server.listen(port, '127.0.0.1', () => {
@@ -114,8 +122,8 @@ function startImporterServer(options) {
   return server;
 }
 
-function sendUiFile(response, [fileName, contentType]) {
-  const bytes = fs.readFileSync(path.join(__dirname, 'ui', fileName));
+function sendUiFile(response, [fileName, contentType], fileSystem) {
+  const bytes = fileSystem.readFileSync(path.join(__dirname, 'ui', fileName));
   response.writeHead(200, {
     'Content-Type': contentType,
     'Content-Length': bytes.length
@@ -140,6 +148,14 @@ function isLoopbackHost(host) {
   return typeof host === 'string' && /^(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?$/i.test(host);
 }
 
+function isLoopbackAddress(address) {
+  return typeof address === 'string' && (
+    address === '::1' ||
+    /^127(?:\.[0-9]{1,3}){3}$/.test(address) ||
+    /^::ffff:127(?:\.[0-9]{1,3}){3}$/i.test(address)
+  );
+}
+
 function hasSessionCookie(cookieHeader, token) {
   if (typeof cookieHeader !== 'string') return false;
   return cookieHeader.split(';').some(cookie => cookie.trim() === `${COOKIE_NAME}=${token}`);
@@ -158,8 +174,12 @@ function requireContentType(request, expected) {
   }
 }
 
-function requireSession(session) {
-  if (!session) throw httpError('source_required', 409, 'Load a VeadoTube source first');
+function requireSession(currentSession, sessionId) {
+  if (!currentSession) throw httpError('source_required', 409, 'Load a VeadoTube source first');
+  if (typeof sessionId !== 'string' || sessionId !== currentSession.id) {
+    throw httpError('stale_source', 409, 'The reviewed source is no longer active');
+  }
+  return currentSession.importer;
 }
 
 async function readJson(request) {
@@ -209,15 +229,16 @@ function sendError(response, error) {
   }
   const status = error.status || statusForCode(error.code);
   sendJson(response, status, {
-    error: error.code || 'internal_error',
+    error: status === 500 ? 'internal_error' : error.code,
     message: status === 500 ? 'Importer request failed' : error.message
   });
 }
 
 function statusForCode(code) {
-  if (code === 'model_exists' || code === 'source_required') return 409;
+  if (code === 'model_exists' || code === 'source_required' || code === 'stale_source') return 409;
   if (code === 'file_too_large' || code === 'request_too_large') return 413;
-  return code ? 400 : 500;
+  if (code === 'commit_failed' || code === 'path_check_failed') return 500;
+  return typeof code === 'string' && /^[a-z][a-z0-9_]*$/.test(code) ? 400 : 500;
 }
 
 function httpError(code, status, message, cause) {
