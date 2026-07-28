@@ -72,8 +72,8 @@ function commitStagedImport(staged) {
   if (pathIsOccupied(targetDir)) {
     throw stageError('model_exists', `Model ${modelName} already exists`);
   }
-  const manifest = validateStagedImport(staged);
   const stageDir = validateStageDirectory(assetsRoot, staged?.stageDir, staged?.stageIdentity);
+  const manifest = validateStagedImport(staged);
   try {
     fs.renameSync(stageDir, targetDir);
   } catch (error) {
@@ -128,11 +128,13 @@ function validateStagedImport(staged) {
     throw stageError('invalid_stage_target', 'Staged import target does not match its model name');
   }
 
+  const snapshots = [];
   const manifestPath = path.join(stageDir, MANIFEST_NAME);
   const manifestBytes = readBoundedRegularFile(
     manifestPath,
     1024 * 1024,
-    'invalid_stage_manifest'
+    'invalid_stage_manifest',
+    snapshots
   );
   let manifest;
   try {
@@ -150,7 +152,12 @@ function validateStagedImport(staged) {
   let totalBytes = 0;
   for (const asset of assets) {
     const assetPath = path.join(stageDir, asset.fileName);
-    const png = readBoundedRegularFile(assetPath, MAX_ASSET_BYTES, 'staged_asset_invalid');
+    const png = readBoundedRegularFile(
+      assetPath,
+      MAX_ASSET_BYTES,
+      'staged_asset_invalid',
+      snapshots
+    );
     if (png.length !== asset.byteLength) {
       throw stageError('staged_asset_invalid', `Staged asset ${asset.fileName} has the wrong size`);
     }
@@ -176,6 +183,8 @@ function validateStagedImport(staged) {
   if (!sameNames(finalNames, expectedNames)) {
     throw stageError('staged_file_mismatch', 'Staged import changed during validation');
   }
+  validateStageDirectory(assetsRoot, stageDir, staged?.stageIdentity);
+  for (const snapshot of snapshots) assertRegularFileSnapshot(snapshot);
   return manifest;
 }
 
@@ -346,7 +355,7 @@ function validateStageDirectory(assetsRoot, stageDir, expectedIdentity) {
   return resolved;
 }
 
-function readBoundedRegularFile(filePath, maxBytes, code) {
+function readBoundedRegularFile(filePath, maxBytes, code, snapshots) {
   let pathStat;
   try {
     pathStat = fs.lstatSync(filePath);
@@ -394,14 +403,49 @@ function readBoundedRegularFile(filePath, maxBytes, code) {
         !sameSnapshot(after, finalPathStat)) {
       throw stageError(code, `Staged file ${path.basename(filePath)} changed during validation`);
     }
+    if (snapshots) {
+      snapshots.push({
+        code,
+        filePath,
+        stat: Object.freeze(fileSnapshot(finalPathStat))
+      });
+    }
     return bytes.subarray(0, bytesRead);
   } finally {
     fs.closeSync(descriptor);
   }
 }
 
+function assertRegularFileSnapshot(snapshot) {
+  let stat;
+  try {
+    stat = fs.lstatSync(snapshot.filePath);
+  } catch (error) {
+    throw stageError(
+      snapshot.code,
+      `Staged file ${path.basename(snapshot.filePath)} changed before commit`,
+      error
+    );
+  }
+  if (!stat.isFile() || stat.isSymbolicLink() || !sameSnapshot(stat, snapshot.stat)) {
+    throw stageError(
+      snapshot.code,
+      `Staged file ${path.basename(snapshot.filePath)} changed before commit`
+    );
+  }
+}
+
 function fileIdentity(stat) {
   return { dev: stat.dev, ino: stat.ino };
+}
+
+function fileSnapshot(stat) {
+  return {
+    ...fileIdentity(stat),
+    size: stat.size,
+    mtimeMs: stat.mtimeMs,
+    ctimeMs: stat.ctimeMs
+  };
 }
 
 function sameIdentity(left, right) {

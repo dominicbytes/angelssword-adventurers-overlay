@@ -131,6 +131,38 @@ test('refuses a tampered stage and permits explicit cleanup', () => {
   });
 });
 
+test('revalidates asset identity after content validation', () => {
+  withAssetsRoot(assetsRoot => {
+    const staged = stageStaticImport(importRequest(assetsRoot));
+    const assetPath = path.join(staged.stageDir, 'neutral_idle.png');
+    const originalReaddirSync = fs.readdirSync;
+    let stageReads = 0;
+    let changed = false;
+
+    fs.readdirSync = function readdirSync(candidate, ...args) {
+      if (path.resolve(candidate) === path.resolve(staged.stageDir)) {
+        stageReads += 1;
+        if (stageReads === 2) {
+          fs.writeFileSync(assetPath, 'changed after content validation');
+          changed = true;
+        }
+      }
+      return originalReaddirSync.call(this, candidate, ...args);
+    };
+
+    try {
+      assert.throws(
+        () => commitStagedImport(staged),
+        error => error.code === 'staged_asset_invalid'
+      );
+      assert.equal(changed, true);
+      assert.equal(fs.existsSync(staged.targetDir), false);
+    } finally {
+      fs.readdirSync = originalReaddirSync;
+    }
+  });
+});
+
 test('rejects tampered importer provenance in the staged manifest', () => {
   withAssetsRoot(assetsRoot => {
     const staged = stageStaticImport(importRequest(assetsRoot));
