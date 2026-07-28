@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { inspectFile } = require('../inspect');
+const { version: importerVersion } = require('../package.json');
 
 function miniFixture() {
   function chunk(id, type, data) {
@@ -41,6 +42,7 @@ test('inspects a file deterministically without changing the source', t => {
   const second = inspectFile(sourcePath);
 
   assert.deepEqual(second, first);
+  assert.equal(first.importerVersion, importerVersion);
   assert.equal(first.source.sha256, expectedHash);
   assert.deepEqual(first.chunkTypes, { MLST: 1, MSTA: 1 });
   assert.equal(first.mini.states[0].name, 'Idle');

@@ -5,9 +5,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { assertWindowsPlatform } = require('./platform');
 const { validatePng } = require('./png');
+const {
+  name: IMPORTER_NAME,
+  version: IMPORTER_VERSION
+} = require('./package.json');
 
-const IMPORTER_NAME = '@as-adventurer/veadotube-importer';
-const IMPORTER_VERSION = '0.5.0';
 const MANIFEST_NAME = '.as-adventurer-import.json';
 const STAGE_CONTAINER = '.veadotube-import-staging';
 const STAGE_PREFIX = 'stage-';

@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { DEFAULT_LIMITS, inspectBytes } = require('./inventory');
 const { decodeMiniAvatar } = require('./mini');
+const { version: IMPORTER_VERSION } = require('./package.json');
 
 function inspectFile(sourcePath, options) {
   const { fileSystem = fs, ...limitOverrides } = options || {};
@@ -14,7 +15,7 @@ function inspectFile(sourcePath, options) {
   const counts = new Map();
   for (const chunk of report.chunks) counts.set(chunk.type, (counts.get(chunk.type) || 0) + 1);
   return {
-    importerVersion: '0.5.0',
+    importerVersion: IMPORTER_VERSION,
     source: {
       name: path.basename(sourcePath),
       byteLength: bytes.length,
