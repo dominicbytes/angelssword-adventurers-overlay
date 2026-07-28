@@ -16,7 +16,19 @@ function createImportSession(input) {
   const inventory = inspectBytes(bytes, fileName, limits);
   const document = decodeMiniAvatar(bytes, inventory, limits);
   const mappingOptions = { assetStates };
-  const view = createConfirmationView(document, mappingOptions);
+  const maxPreviewPixels = limits.maxPreviewPixels ?? 8 * 1024 * 1024;
+  const baseView = createConfirmationView(document, mappingOptions);
+  const view = {
+    ...baseView,
+    states: baseView.states.map(state => ({
+      ...state,
+      assets: state.assets.map(asset => ({
+        ...asset,
+        previewAvailable: asset.kind === 'static_png' &&
+          asset.width * asset.height <= maxPreviewPixels
+      }))
+    }))
+  };
   const source = Object.freeze({
     name: fileName,
     byteLength: bytes.length,
@@ -25,7 +37,7 @@ function createImportSession(input) {
   const previewEntries = new Map();
   for (const state of view.states) {
     for (const asset of state.assets) {
-      if (asset.kind === 'static_png' && !previewEntries.has(asset.sourceImageId)) {
+      if (asset.previewAvailable && !previewEntries.has(asset.sourceImageId)) {
         previewEntries.set(asset.sourceImageId, {
           fileName: `preview-${asset.sourceImageId}.png`,
           sourceImageId: asset.sourceImageId,
@@ -42,7 +54,7 @@ function createImportSession(input) {
     const previews = generateStaticPreviews(bytes, document, {
       assets: [previewEntries.get(sourceImageId)],
       reviewAssets: []
-    }, { maxPreviewCount: 1 });
+    }, { ...limits, maxPreviewPixels, maxPreviewCount: 1 });
     const result = previews.next();
     if (result.done) {
       throw sessionError('preview_not_available', 'A static preview is not available for this image');
@@ -52,10 +64,24 @@ function createImportSession(input) {
 
   function install(confirmation) {
     const plan = confirmImportMappings(document, confirmation, mappingOptions);
+    const oversized = plan.assets.filter(asset => asset.width * asset.height > maxPreviewPixels);
+    if (oversized.length > 0) {
+      const error = sessionError(
+        'mapped_asset_exceeds_limit',
+        'One or more mapped assets exceed the configured static import limit'
+      );
+      error.assets = oversized.map(asset => ({
+        state: asset.state,
+        sourceImageId: asset.sourceImageId,
+        width: asset.width,
+        height: asset.height
+      }));
+      throw error;
+    }
     const previews = [...generateStaticPreviews(bytes, document, {
       assets: plan.assets,
       reviewAssets: []
-    })];
+    }, { ...limits, maxPreviewPixels })];
     return installStaticModel({
       assetsRoot: input.assetsRoot,
       modelName: confirmation.modelName,

@@ -77,3 +77,26 @@ test('rejects unsupported source containers before creating a session', () => {
     assert.deepEqual(fs.readdirSync(assetsRoot), []);
   });
 });
+
+test('reports and blocks static assets above the session preview limit', () => {
+  withAssetsRoot(assetsRoot => {
+    const session = createImportSession({
+      bytes: miniFixture(),
+      fileName: 'fixture.veado',
+      assetsRoot,
+      limits: { maxPreviewPixels: 3 }
+    });
+
+    assert.equal(session.view.states[0].assets[0].kind, 'static_png');
+    assert.equal(session.view.states[0].assets[0].previewAvailable, false);
+    assert.throws(() => session.preview(14), error => error.code === 'preview_not_available');
+    assert.throws(() => session.install({
+      modelName: 'Oversized Fixture',
+      confirmed: true,
+      selections: [{ stateId: 3, target: 'happy' }]
+    }), error => (
+      error.code === 'mapped_asset_exceeds_limit' && error.assets.length === 2
+    ));
+    assert.deepEqual(fs.readdirSync(assetsRoot), []);
+  });
+});

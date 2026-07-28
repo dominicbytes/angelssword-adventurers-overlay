@@ -94,14 +94,16 @@ function renderAsset(asset) {
   const figure = document.createElement('figure');
   const frame = document.createElement('div');
   frame.className = 'preview-frame';
-  if (asset.kind === 'static_png') {
+  if (asset.previewAvailable) {
     const image = document.createElement('img');
     image.alt = `${asset.role.replaceAll('_', ' ')} preview`;
     frame.append(image);
     loadPreview(image, asset.sourceImageId);
   } else {
     const unavailable = document.createElement('span');
-    unavailable.textContent = asset.kind === 'animated_unresolved' ? 'Animated' : 'Unavailable';
+    unavailable.textContent = asset.kind === 'animated_unresolved'
+      ? 'Animated'
+      : asset.kind === 'static_png' ? 'Above size limit' : 'Unavailable';
     frame.append(unavailable);
   }
   const caption = document.createElement('figcaption');
