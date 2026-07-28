@@ -1,13 +1,14 @@
 {
   "name": "@as-adventurer/veadotube-importer",
-  "version": "0.4.0",
-  "description": "VeadoTube Mini static preview generator for AS Adventurer Byte Edition",
+  "version": "0.5.0",
+  "description": "VeadoTube Mini static model importer for AS Adventurer Byte Edition",
   "license": "MIT",
   "scripts": {
+    "start": "node serve.js",
     "test": "node --test tests/*.test.js"
   },
   "asAdventurer": {
     "distribution": "byte-edition",
-    "mode": "preview"
+    "mode": "static-import"
   }
 }
