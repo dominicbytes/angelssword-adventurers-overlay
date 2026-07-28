@@ -20,6 +20,9 @@ function stageStaticImport(request) {
   const source = validateSource(request?.source);
   const prepared = validatePreviews(request?.previews);
   const targetDir = path.join(assetsRoot, modelName);
+  if (pathIsOccupied(targetDir)) {
+    throw stageError('model_exists', `Model ${modelName} already exists`);
+  }
   const manifest = {
     schemaVersion: 1,
     importer: IMPORTER_NAME,
@@ -47,6 +50,52 @@ function stageStaticImport(request) {
   }
 
   return Object.freeze({ assetsRoot, modelName, stageDir, targetDir });
+}
+
+function commitStagedImport(staged) {
+  const manifest = validateStagedImport(staged);
+  if (pathIsOccupied(staged.targetDir)) {
+    throw stageError('model_exists', `Model ${staged.modelName} already exists`);
+  }
+  try {
+    fs.renameSync(staged.stageDir, staged.targetDir);
+  } catch (error) {
+    if (pathIsOccupied(staged.targetDir)) {
+      throw stageError('model_exists', `Model ${staged.modelName} already exists`, error);
+    }
+    throw stageError('commit_failed', 'Staged import could not be committed', error);
+  }
+  return { targetDir: staged.targetDir, manifest };
+}
+
+function discardStagedImport(staged) {
+  const assetsRoot = resolveAssetsRoot(staged?.assetsRoot);
+  let stageDir;
+  try {
+    stageDir = validateStageDirectory(assetsRoot, staged?.stageDir);
+  } catch (error) {
+    if (error.code === 'invalid_stage_path' && !pathIsOccupied(staged?.stageDir)) return false;
+    throw error;
+  }
+  removeOwnedStage(assetsRoot, stageDir);
+  return true;
+}
+
+function installStaticModel(request) {
+  let staged;
+  try {
+    staged = stageStaticImport(request);
+    return commitStagedImport(staged);
+  } catch (error) {
+    if (staged && pathIsOccupied(staged.stageDir)) {
+      try {
+        discardStagedImport(staged);
+      } catch {
+        // Preserve the validation or commit failure that prevented installation.
+      }
+    }
+    throw error;
+  }
 }
 
 function validateStagedImport(staged) {
@@ -256,6 +305,17 @@ function readRegularFileStat(filePath, code) {
   return stat;
 }
 
+function pathIsOccupied(filePath) {
+  if (typeof filePath !== 'string' || filePath.length === 0) return false;
+  try {
+    fs.lstatSync(filePath);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw stageError('path_check_failed', 'Import destination could not be checked', error);
+  }
+}
+
 function addToBudget(total, amount) {
   const next = total + amount;
   if (!Number.isSafeInteger(next) || next > MAX_TOTAL_BYTES) {
@@ -294,4 +354,10 @@ function stageError(code, message, cause) {
   return error;
 }
 
-module.exports = { stageStaticImport, validateStagedImport };
+module.exports = {
+  commitStagedImport,
+  discardStagedImport,
+  installStaticModel,
+  stageStaticImport,
+  validateStagedImport
+};

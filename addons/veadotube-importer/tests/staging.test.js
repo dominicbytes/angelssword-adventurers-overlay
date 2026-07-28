@@ -5,7 +5,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { stageStaticImport, validateStagedImport } = require('../staging');
+const {
+  commitStagedImport,
+  discardStagedImport,
+  installStaticModel,
+  stageStaticImport,
+  validateStagedImport
+} = require('../staging');
 
 const PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mPgEpFrAAABJQC9MRgrDgAAAABJRU5ErkJggg==',
@@ -78,5 +84,70 @@ test('stages and validates a static model without exposing it as installed', () 
         sha256: PNG_SHA256
       }]
     });
+  });
+});
+
+test('commits a validated stage as one complete model directory', () => {
+  withAssetsRoot(assetsRoot => {
+    const staged = stageStaticImport(importRequest(assetsRoot));
+    const manifest = validateStagedImport(staged);
+    const result = commitStagedImport(staged);
+
+    assert.equal(result.targetDir, path.join(fs.realpathSync(assetsRoot), 'Avatar One'));
+    assert.equal(fs.existsSync(staged.stageDir), false);
+    assert.deepEqual(fs.readdirSync(result.targetDir).sort(), [
+      '.as-adventurer-import.json',
+      'neutral_idle.png'
+    ]);
+    assert.deepEqual(result.manifest, manifest);
+  });
+});
+
+test('refuses a model collision without changing the existing directory', () => {
+  withAssetsRoot(assetsRoot => {
+    const targetDir = path.join(assetsRoot, 'Avatar One');
+    fs.mkdirSync(targetDir);
+    fs.writeFileSync(path.join(targetDir, 'sentinel.txt'), 'keep me');
+
+    assert.throws(
+      () => installStaticModel(importRequest(assetsRoot)),
+      error => error.code === 'model_exists'
+    );
+    assert.equal(fs.readFileSync(path.join(targetDir, 'sentinel.txt'), 'utf8'), 'keep me');
+    assert.deepEqual(
+      fs.readdirSync(assetsRoot).filter(name => name.startsWith('.veadotube-import-')),
+      []
+    );
+  });
+});
+
+test('refuses a tampered stage and permits explicit cleanup', () => {
+  withAssetsRoot(assetsRoot => {
+    const staged = stageStaticImport(importRequest(assetsRoot));
+    fs.writeFileSync(path.join(staged.stageDir, 'neutral_idle.png'), 'not a PNG');
+
+    assert.throws(
+      () => commitStagedImport(staged),
+      error => error.code === 'staged_asset_invalid'
+    );
+    assert.equal(fs.existsSync(staged.targetDir), false);
+    assert.equal(discardStagedImport(staged), true);
+    assert.equal(fs.existsSync(staged.stageDir), false);
+  });
+});
+
+test('rejects unsafe Windows model and asset names before writing', () => {
+  withAssetsRoot(assetsRoot => {
+    for (const modelName of ['../escape', 'CON', 'trailing.']) {
+      assert.throws(
+        () => stageStaticImport({ ...importRequest(assetsRoot), modelName }),
+        error => error.code === 'invalid_model_name'
+      );
+    }
+    assert.throws(() => stageStaticImport({
+      ...importRequest(assetsRoot),
+      previews: [{ ...importRequest(assetsRoot).previews[0], fileName: '../escape.png' }]
+    }), error => error.code === 'invalid_asset_name');
+    assert.deepEqual(fs.readdirSync(assetsRoot), []);
   });
 });
